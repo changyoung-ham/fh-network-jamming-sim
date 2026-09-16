@@ -1,0 +1,3 @@
+N=10: unjammed lambda_2=9.213, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-10 dB
+N=20: unjammed lambda_2=17.079, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-8 dB
+N=30: unjammed lambda_2=25.259, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-6 dB
