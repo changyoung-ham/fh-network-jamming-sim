@@ -40,10 +40,20 @@ bit → AWGN → Eb/N0 → BER → hopping → partial-band jamming
 
 ```
 src/        simulation scripts, one per stage
+theory/     derivation notes (LaTeX + PDF), one per stage — see theory/README.md
 figures/    generated figures (committed so results are viewable without running)
 results/    numeric results (CSV)
 environment.yml
 ```
+
+## Theory notes
+
+Each stage has a short derivation note in [`theory/`](theory/README.md) that
+maps the code to the equations and explains what each verification check
+proves: the BPSK/AWGN error probability and Monte Carlo statistics (S0), the
+jammer's optimal band fraction and the inverse-linear worst-case BER law (S1),
+and the Laplacian eigenvalue theorems behind λ₂ including a bound the first
+version of the code got wrong (S2).
 
 ## Reproducing the results
 
