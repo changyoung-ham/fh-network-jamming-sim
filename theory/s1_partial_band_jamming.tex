@@ -1,0 +1,187 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\newcommand{\Q}{\operatorname{Q}}
+\newcommand{\EbNo}{E_b/N_0}
+\newcommand{\EbNJ}{E_b/N_J}
+\setlength{\parskip}{4pt}
+
+\title{Theory note S1 --- Frequency hopping under partial-band jamming:\\
+processing gain, the worst-case band fraction, and the jamming margin}
+\author{Chang Young Ham}
+\date{September 2026 \quad (accompanies \texttt{src/s1\_fh\_partial\_band\_jamming.py})}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Purpose.}
+S1 adds a hopping transmitter and an intelligent jammer to the S0 link. This
+note derives (i) why hopping buys a processing gain, (ii) the closed-form BER
+used to verify the simulator, (iii) the jammer's optimal band fraction
+$\rho^\ast$ and the resulting inverse-linear BER law, and (iv) the jamming
+margin numbers reported in \texttt{results/s1\_link\_budget.txt}.
+Mathematics used: total probability, one-variable optimisation, a first-order
+asymptotic of the Gaussian tail.
+
+\section{Processing gain}
+
+The data occupies bandwidth $W_d$; the transmitter hops among $N_{\mathrm{ch}}$
+channels spread over $W_{ss}\approx N_{\mathrm{ch}}W_d$. A jammer with total
+power $J$ that wants to cover the whole hopping band must spread $J$ over
+$W_{ss}$, so its density is $N_J = J/W_{ss}$. The transmitter's signal at any
+instant occupies only $W_d$, where the jammer delivers only
+$N_J W_d = J\,W_d/W_{ss} = J/N_{\mathrm{ch}}$ of its power. The jammer
+effectively loses a factor
+\[
+  G_p = \frac{W_{ss}}{W_d} \approx N_{\mathrm{ch}}, \qquad
+  G_p\,[\mathrm{dB}] = 10\log_{10}N_{\mathrm{ch}}.
+\]
+With $N_{\mathrm{ch}}=100$: $G_p = 20$\,dB.
+
+\paragraph{Relating $\EbNJ$ to $J/S$.}
+With signal power $S$ and bit rate $R_b$, $E_b = S/R_b$. Taking $W_d\approx R_b$,
+\[
+  \frac{E_b}{N_J} = \frac{S/R_b}{J/W_{ss}} = \frac{S}{J}\cdot\frac{W_{ss}}{R_b}
+  \approx \frac{S}{J}\,G_p
+  \quad\Longrightarrow\quad
+  \boxed{\ \frac{E_b}{N_J}\,[\mathrm{dB}] = G_p\,[\mathrm{dB}] - \frac{J}{S}\,[\mathrm{dB}]\ }.
+\]
+This is the line \texttt{ebnj\_lin = db\_to\_linear(gp\_db - js\_db)} in the code and
+the reason the figure's $x$-axis is $J/S$ while the physics runs on $\EbNJ$.
+
+\section{Partial-band jamming: the mixture formula}
+
+An intelligent jammer does not spread over the whole band. It concentrates $J$
+on a fraction $\rho\in(0,1]$ of the channels, raising its density there to
+$N_J/\rho$ and leaving the rest clean. The transmitter does not know which
+channels are jammed (pseudo-random pattern), so each hop lands in the jammed
+region independently with probability $\rho$. By the law of total probability,
+\begin{equation}
+  P_b(\rho) = (1-\rho)\,\Q\!\left(\sqrt{\tfrac{2E_b}{N_0}}\right)
+            + \rho\,\Q\!\left(\sqrt{\tfrac{2E_b}{N_0 + N_J/\rho}}\right).
+  \label{eq:mix}
+\end{equation}
+The first term is the thermal-noise-only BER of S0 (clean hop); the second is an
+S0 link whose noise density is $N_0$ plus the concentrated jammer density.
+This is \texttt{ber\_partial\_band\_theory()} and it is what the Monte Carlo
+(random jammed flag per hop, then the S0 machinery) is checked against.
+
+\paragraph{Limit check ($\rho=1$).}
+Eq.~\eqref{eq:mix} reduces to $\Q\!\big(\sqrt{2E_b/(N_0+N_J)}\big)$: plain AWGN with
+the two densities added. \texttt{VERIFICATION 2} asserts exactly this
+(agreement to $10^{-12}$).
+
+\section{The jammer's optimal $\rho$ and the inverse-linear law}
+
+From the jammer's point of view $\rho$ is a control knob and it wants to
+maximise \eqref{eq:mix}. When the jammer dominates the thermal noise
+($N_J/\rho \gg N_0$), drop $N_0$:
+\[
+  P_b(\rho) \approx \rho\,\Q\!\left(\sqrt{\tfrac{2\rho E_b}{N_J}}\right).
+\]
+Substitute $x = 2\rho\,\EbNJ$ (so $\rho = x/(2\EbNJ)$):
+\[
+  P_b \approx \frac{x\,\Q(\sqrt{x})}{2\,\EbNJ} = \frac{g(x)}{2\,\EbNJ},
+  \qquad g(x) := x\,\Q(\sqrt x).
+\]
+The dependence on $\EbNJ$ has been pulled out; the jammer just maximises
+$g(x)$ over $x>0$. Setting $g'(x)=0$, with $\Q'(u) = -\varphi(u)$ and
+$\varphi(u)=e^{-u^2/2}/\sqrt{2\pi}$,
+\[
+  g'(x) = \Q(\sqrt x) - x\,\varphi(\sqrt x)\,\frac{1}{2\sqrt x}
+        = \Q(\sqrt x) - \frac{\sqrt x}{2}\,\varphi(\sqrt x) = 0.
+\]
+This transcendental equation has one positive root, found numerically:
+\[
+  x^\ast \approx 1.418, \qquad g(x^\ast)\approx 0.1657 .
+\]
+\textbf{Stop here and check:} evaluate both sides of $\Q(\sqrt x)=\tfrac{\sqrt x}{2}\varphi(\sqrt x)$
+at $x=1.418$; they agree to four decimals ($0.1169$).
+
+Two consequences follow immediately.
+\begin{align}
+  \rho^\ast &= \frac{x^\ast}{2\,\EbNJ} \approx \frac{0.709}{\EbNJ}, \label{eq:rhostar}\\[2pt]
+  P_b^{\text{worst}} &= \frac{g(x^\ast)}{2\,\EbNJ} \approx \frac{0.083}{\EbNJ}. \label{eq:worst}
+\end{align}
+Eq.~\eqref{eq:worst} is the central fact of S1: \emph{against an optimal
+partial-band jammer the BER decays only as $1/(\EbNJ)$}, not exponentially as
+in S0. Doubling the signal power halves the error rate instead of squaring it
+away. (Eq.~\eqref{eq:rhostar} is only meaningful while $\rho^\ast\le 1$, i.e.\
+$\EbNJ \ge x^\ast/2 \approx -1.5$\,dB; below that the jammer simply uses the
+whole band.)
+
+\paragraph{The number in the figure.}
+At $J/S = 12$\,dB with $G_p=20$\,dB, $\EbNJ = 8$\,dB $=6.31$. Eq.~\eqref{eq:rhostar}
+gives $\rho^\ast = 0.709/6.31 = 0.112$ with thermal noise ignored. Keeping the
+thermal term $N_0$ in \eqref{eq:mix} shifts the optimum slightly upward; a
+numerical search of the exact formula gives $\rho^\ast = 0.135$, which is the
+$0.14$ reported by both the closed-form grid and the Monte Carlo
+(\texttt{VERIFICATION 3}). The corresponding worst-case BER is
+$1.42\times10^{-2}$ versus $2.70\times10^{-3}$ for a full-band jammer of the same
+power: the factor of five in the figure.
+
+\section{Jamming margin}
+
+A link is declared \emph{up} if $P_b \le \mathrm{BER}_{\mathrm{out}} = 10^{-3}$
+(assumed criterion; the S2 note discusses its consequences). Invert the BER
+formula to find the $\EbNJ$ at which the criterion is just met,
+$(\EbNJ)_{\mathrm{req}}$, then allow an implementation loss $L_{\mathrm{sys}}$.
+The jamming margin is the $J/S$ the link can absorb:
+\[
+  M_J\,[\mathrm{dB}] = G_p - (\EbNJ)_{\mathrm{req}} - L_{\mathrm{sys}}.
+\]
+For $N_{\mathrm{ch}}=100$, $\EbNo=10$\,dB, $L_{\mathrm{sys}}=2$\,dB:
+
+\begin{center}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+jammer strategy & $(\EbNJ)_{\mathrm{req}}$ & $M_J$ \\
+\midrule
+full band, $\rho=1$ & 9.65\,dB & $20-9.65-2 = \mathbf{8.35}$\,dB \\
+optimal $\rho$      & 18.95\,dB & $20-18.95-2 = \mathbf{-0.95}$\,dB \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The optimal jammer needs 9.3\,dB \emph{less} power to break the link. The
+\emph{negative} margin in the second row means that at $\mathrm{BER}_{\mathrm{out}}=10^{-3}$,
+100 hop channels alone cannot protect a BPSK link against a jammer of equal
+received power --- a statement that motivates every extension listed in S2.
+
+\section{Correspondence with the code}
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Mathematics & Code \\
+\midrule
+$G_p = 10\log_{10}N_{\mathrm{ch}}$ & \texttt{gp\_db = linear\_to\_db(N\_CH)} \\
+$\EbNJ = G_p - J/S$ & \texttt{ebnj\_lin = db\_to\_linear(gp\_db - js\_db)} \\
+jammed hop w.p.\ $\rho$ & \texttt{jammed = rng.random(...) < rho} \\
+$\sigma^2 = (N_0 + N_J/\rho)/2$ & \texttt{sigma\_jammed = np.sqrt((n0 + nj / rho) / 2.0)} \\
+Eq.~\eqref{eq:mix} & \texttt{ber\_partial\_band\_theory()} \\
+$\rho^\ast$ by grid search & \texttt{RHO\_GRID[np.argmax(ber\_rho\_theory)]} \\
+$(\EbNJ)_{\mathrm{req}}$ & first grid point with worst-case BER $\le 10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Self-check}
+\begin{enumerate}[nosep]
+  \item Explain in one sentence why a jammer that covers the whole hopping band
+        wastes $1-1/N_{\mathrm{ch}}$ of its power.
+  \item Derive \eqref{eq:mix} from the law of total probability.
+  \item Starting from $P_b\approx\rho\,\Q(\sqrt{2\rho\EbNJ})$, show that the optimal
+        $\rho$ scales as $1/(\EbNJ)$ and that the worst-case BER scales the same
+        way. Why does this matter more than the exact constant $0.083$?
+  \item Why is the required $\EbNJ$ for the optimal jammer (18.95\,dB) so much
+        larger than for the full-band jammer (9.65\,dB)? Relate the gap to
+        the $1/x$ versus $e^{-x}$ decay laws.
+  \item What would change in the analysis if the jammer \emph{knew} the
+        hopping pattern (a follower jammer)? Which assumption breaks?
+\end{enumerate}
+
+\end{document}

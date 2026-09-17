@@ -1,0 +1,168 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\newcommand{\Q}{\operatorname{Q}}
+\newcommand{\erfc}{\operatorname{erfc}}
+\newcommand{\EbNo}{E_b/N_0}
+\setlength{\parskip}{4pt}
+
+\title{Theory note S0 --- Why the BER of BPSK in AWGN is $\Q\!\left(\sqrt{2E_b/N_0}\right)$}
+\author{Chang Young Ham}
+\date{September 2026 \quad (accompanies \texttt{src/s0\_bpsk\_awgn\_ber.py})}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Purpose.}
+S0 is the calibration stage of the repository: the simulator must reproduce a
+result whose exact answer is known before it is used on problems (S1, S2) that
+have no closed form. This note derives that answer, maps every symbol to a line
+of the code, and explains what the ``ratio $0.96$--$1.03$'' verification actually
+proves. Mathematics used: Gaussian random variables, conditional probability,
+the binomial estimator.
+
+\section{Signal model}
+
+One bit $b\in\{0,1\}$ is transmitted per symbol. Binary phase-shift keying maps it to
+\[
+  s = \begin{cases} +\sqrt{E_b} & b=1 \\ -\sqrt{E_b} & b=0 \end{cases}
+\]
+so that every symbol carries energy $s^2 = E_b$ (energy per bit).
+The channel adds white Gaussian noise. After the receiver's matched filter the
+decision variable is a single real number
+\[
+  r = s + n, \qquad n \sim \mathcal N\!\left(0,\ \sigma^2\right).
+\]
+
+\paragraph{Where $\sigma^2 = N_0/2$ comes from.}
+$N_0$ is the \emph{one-sided} noise power spectral density (power per Hz of
+positive frequency). A real matched filter for a unit-energy pulse has a noise
+output variance equal to $N_0/2$ --- half of the density, because the two-sided
+spectrum spreads $N_0$ over positive and negative frequencies at $N_0/2$ each.
+Hence
+\[
+  \sigma^2 = \frac{N_0}{2}.
+\]
+\emph{This factor of two is the single most common source of a simulated BER
+curve that is ``a few dB off'' from theory.}
+
+\section{The decision rule and the error event}
+
+Both symbols are equally likely, and the noise is symmetric, so the
+maximum-likelihood decision is a threshold at zero:
+\[
+  \hat b = \begin{cases} 1 & r>0 \\ 0 & r\le 0. \end{cases}
+\]
+Condition on $b=1$ (so $s=+\sqrt{E_b}$). An error occurs when $r\le 0$, i.e.\ when
+$n \le -\sqrt{E_b}$:
+\[
+  P(\text{error}\mid b=1) = P\!\left(n\le-\sqrt{E_b}\right)
+  = P\!\left(\frac{n}{\sigma} \le -\frac{\sqrt{E_b}}{\sigma}\right)
+  = \Q\!\left(\frac{\sqrt{E_b}}{\sigma}\right),
+\]
+where $\Q(x) = P(Z > x)$ for $Z\sim\mathcal N(0,1)$ is the Gaussian tail function and we
+used the symmetry $P(Z\le -x)=P(Z\ge x)$. By the same argument
+$P(\text{error}\mid b=0)$ is identical, so the average bit error rate is
+\begin{equation}
+  \mathrm{BER} = \Q\!\left(\frac{\sqrt{E_b}}{\sigma}\right)
+  = \Q\!\left(\sqrt{\frac{E_b}{N_0/2}}\right)
+  = \boxed{\ \Q\!\left(\sqrt{\tfrac{2E_b}{N_0}}\right)\ }.
+  \label{eq:ber}
+\end{equation}
+
+\paragraph{Stop here and check.}
+Put $E_b=1$, $\EbNo = 10$ (10\,dB). Then $\sigma = \sqrt{1/20}=0.2236$ and the
+argument of $\Q$ is $1/0.2236 = 4.47$. Confirm from a table or code that
+$\Q(4.47)\approx 3.9\times10^{-6}$, which is the last point of the S0 curve.
+
+\section{$\Q$ and $\erfc$}
+
+The code uses \texttt{scipy.special.erfc} because SciPy does not ship $\Q$
+directly. The two are related by
+\[
+  \Q(x) = \tfrac12\,\erfc\!\left(\tfrac{x}{\sqrt2}\right)
+  \quad\Longrightarrow\quad
+  \mathrm{BER} = \tfrac12\,\erfc\!\left(\sqrt{\tfrac{E_b}{N_0}}\right),
+\]
+which is exactly \texttt{ber\_bpsk\_theory()} in the script.
+
+\section{Correspondence with the code}
+
+The script fixes $E_b = 1$, so $N_0 = 1/(\EbNo)$ and $\sigma = \sqrt{N_0/2}$.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Mathematics & Line in \texttt{s0\_bpsk\_awgn\_ber.py} \\
+\midrule
+$\EbNo$ (linear) from dB & \texttt{ebn0\_lin = db\_to\_linear(ebn0\_db)} \\
+$\sigma = \sqrt{1/(2\,\EbNo)}$ & \texttt{sigma = np.sqrt(1.0 / (2.0 * ebn0\_lin))} \\
+$b\in\{0,1\}$ & \texttt{bits = rng.integers(0, 2, size=...)} \\
+$s = \pm 1$ & \texttt{symbols = 2 * bits - 1} \\
+$n\sim\mathcal N(0,\sigma^2)$ & \texttt{noise = rng.normal(0.0, scale=sigma, ...)} \\
+$r = s+n$ & \texttt{received = symbols + noise} \\
+$\hat b = [r>0]$ & \texttt{decisions = (received > 0).astype(int)} \\
+count $\hat b \ne b$ & \texttt{n\_errors += np.sum(decisions != bits)} \\
+Eq.~\eqref{eq:ber} & \texttt{0.5 * erfc(np.sqrt(ebn0\_linear))} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Note that \texttt{scale} in \texttt{rng.normal} is the standard deviation
+$\sigma$, not the variance $\sigma^2$.
+
+\section{What the Monte Carlo estimate is, and how accurate}
+
+The simulator observes $K$ errors in $n$ bits and reports $\widehat{\mathrm{BER}} = K/n$.
+Each bit is an independent Bernoulli trial with success probability $p=\mathrm{BER}$,
+so $K\sim\mathrm{Binomial}(n,p)$ and
+\[
+  \mathbb E[\widehat{\mathrm{BER}}] = p, \qquad
+  \operatorname{Var}[\widehat{\mathrm{BER}}] = \frac{p(1-p)}{n}\approx\frac{p}{n}.
+\]
+The \emph{relative} standard deviation is therefore
+\[
+  \frac{\sqrt{p/n}}{p} = \frac{1}{\sqrt{np}} = \frac{1}{\sqrt{\mathbb E[K]}}.
+\]
+This is why the script stops each point after \texttt{MIN\_ERRORS = 200} errors
+rather than after a fixed number of bits: 200 observed errors give a relative
+spread of $1/\sqrt{200}\approx 7\%$ regardless of how small $p$ is. It also
+explains why the low-BER points need far more bits (six million at 9\,dB versus
+one million at 0\,dB): the required $n \approx 200/p$ grows as $p$ shrinks.
+
+\paragraph{Why the pass band is $0.7 \le \text{ratio} \le 1.4$.}
+With a 7\,\% relative spread, a ratio outside $[0.7,1.4]$ is roughly a
+four-standard-deviation event --- essentially impossible by chance across ten
+points. A ratio outside that band, or all ratios biased to one side, therefore
+indicates a modelling error (usually $\sigma$), not statistical noise. The
+observed range $0.957$--$1.025$ is what an unbiased estimator with $\sim$7\,\%
+spread looks like.
+
+\section{Why the curve is nearly a straight line on a log axis}
+
+For large $x$ the Gaussian tail satisfies
+\[
+  \Q(x) \approx \frac{1}{x\sqrt{2\pi}}\,e^{-x^2/2},
+\]
+so with $x^2 = 2\EbNo$ the BER falls like $e^{-\EbNo}$: exponentially in the
+\emph{linear} $\EbNo$. On a log-$y$ axis against $\EbNo$ in dB this is not exactly
+straight, but close to it over the plotted range, and each additional dB buys
+roughly a factor of 1.26 in $\EbNo$ and a much larger factor in BER at the
+high-SNR end. This exponential decay is the benchmark that partial-band jamming
+destroys in S1, where the decay becomes only inverse-linear.
+
+\section{Self-check (answer without this note)}
+\begin{enumerate}[nosep]
+  \item Why is the noise variance $N_0/2$ and not $N_0$? What happens to the
+        simulated curve if the code uses $\sigma^2 = N_0$?
+  \item Derive $P(\text{error}\mid b=1)$ in three lines.
+  \item If you observe 20 errors instead of 200, what is the relative spread of
+        the estimate, and how would the plotted points look?
+  \item At $\EbNo = 9$\,dB the script used 6\,million bits. Explain the number.
+  \item Why is $\Q(\sqrt{2\EbNo})$ the same as $\tfrac12\erfc(\sqrt{\EbNo})$?
+\end{enumerate}
+
+\end{document}

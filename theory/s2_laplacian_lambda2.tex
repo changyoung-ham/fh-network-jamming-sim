@@ -1,0 +1,202 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,booktabs,hyperref,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newcommand{\bone}{\mathbf 1}
+\newcommand{\Q}{\operatorname{Q}}
+\newcommand{\bx}{\mathbf x}
+\newcommand{\T}{^{\mathsf T}}
+\setlength{\parskip}{4pt}
+
+\title{Theory note S2 --- The graph Laplacian, algebraic connectivity $\lambda_2$,\\
+and what the verification checks prove}
+\author{Chang Young Ham}
+\date{September 2026 \quad (accompanies \texttt{src/s2\_network\_lambda2.py})}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Purpose.}
+S2 summarises a whole network by one number, $\lambda_2$. This note explains
+why that number is the right one: it proves the two facts the simulator relies
+on ($\lambda_2>0$ iff connected; $\lambda_2\le\frac{N}{N-1}\delta_{\min}$),
+states what the 36{,}090-graph consistency check verifies, and interprets the
+U-shaped $\lambda_2$--$\rho$ curve. Mathematics used: symmetric matrices,
+eigenvalues, quadratic forms, the Courant--Fischer characterisation.
+
+\section{From links to a matrix}
+
+Take $N$ nodes. From S1, each pair $(i,j)$ has a bit error rate
+$P_b(d_{ij}, J/S, \rho)$; the link is \emph{up} if $P_b\le\mathrm{BER}_{\mathrm{out}}$.
+Collect the result in the adjacency matrix
+\[
+  A_{ij} = \begin{cases} 1 & \text{link } (i,j) \text{ up},\ i\ne j \\ 0 & \text{otherwise,}\end{cases}
+\]
+symmetric with zero diagonal. The degree $d_i = \sum_j A_{ij}$ counts a node's
+live links; $D = \operatorname{diag}(d_1,\dots,d_N)$. The \emph{graph Laplacian} is
+\[
+  L = D - A .
+\]
+Its rows sum to zero by construction: $L\bone = D\bone - A\bone = (d_i) - (d_i) = 0$.
+
+\section{Three facts about $L$}
+
+\paragraph{(a) $L$ is symmetric, so its eigenvalues are real.}
+$D$ and $A$ are symmetric. Hence $L$ has $N$ real eigenvalues, which we order
+$\lambda_1\le\lambda_2\le\dots\le\lambda_N$, and an orthonormal eigenbasis.
+\texttt{np.linalg.eigvalsh} exploits exactly this (the ``h'' is for Hermitian).
+
+\paragraph{(b) The quadratic form is a sum of squared differences over edges.}
+For any vector $\bx\in\mathbb R^N$,
+\begin{equation}
+  \bx\T L\bx = \sum_i d_i x_i^2 - \sum_{i,j}A_{ij}x_ix_j
+             = \sum_{\{i,j\}\in E}(x_i - x_j)^2 \ \ge\ 0 .
+  \label{eq:qf}
+\end{equation}
+\textbf{Stop here and check:} expand $\sum_{\{i,j\}\in E}(x_i-x_j)^2$, note that each
+edge contributes $x_i^2 + x_j^2$ (which sums to $\sum_i d_ix_i^2$ over all edges
+touching $i$) and $-2x_ix_j$ (which sums to $-\sum_{i,j}A_{ij}x_ix_j$ since each
+unordered edge appears twice in the double sum).
+
+\paragraph{(c) $\lambda_1 = 0$ always.}
+From (b), $L$ is positive semidefinite, so all $\lambda_k\ge0$; and $L\bone=0$
+shows $0$ is attained with eigenvector $\bone$. Thus $\lambda_1=0$ carries no
+information about the graph --- which is why the second eigenvalue is the one
+that matters.
+
+\section{Theorem: $\lambda_2>0$ if and only if the graph is connected}
+
+\begin{theorem}
+The multiplicity of the eigenvalue $0$ of $L$ equals the number of connected
+components of the graph. In particular $\lambda_2>0 \iff$ the graph is connected.
+\end{theorem}
+
+\begin{proof}
+Suppose $L\bx = 0$. Then $\bx\T L\bx = 0$, and by \eqref{eq:qf} every edge has
+$x_i = x_j$. Following edges, $\bx$ is constant on each connected component.
+Conversely, any vector constant on components is in the null space (each row
+of $L$ only mixes a node with its neighbours, which share its value). So the
+null space is spanned by the indicator vectors of the components, and its
+dimension is the number of components $c$. Hence $\lambda_1=\dots=\lambda_c=0$
+and $\lambda_{c+1}>0$; with $c=1$ this reads $\lambda_2>0$.
+\end{proof}
+
+This theorem is why the script can replace an explicit search over the graph by
+one eigenvalue. \texttt{VERIFICATION 2} is a test of the implementation, not of
+the theorem: for every one of the 36{,}090 graphs generated during the sweeps
+it computes both $[\lambda_2>10^{-9}]$ and a breadth-first search, and demands
+they agree. Zero mismatches means the adjacency construction, the Laplacian,
+and the eigen-solver are consistent with a completely independent algorithm.
+(The $10^{-9}$ tolerance absorbs floating-point round-off; $\lambda_2$ of a
+disconnected graph comes back as $\pm10^{-15}$, not exactly $0$.)
+
+\section{Two exact benchmarks}
+
+\begin{proposition}[Complete graph]
+For $K_N$ (every pair linked), $\lambda_2 = N$.
+\end{proposition}
+\begin{proof}
+$A = \bone\bone\T - I$ and $D = (N-1)I$, so $L = NI - \bone\bone\T$. On the
+subspace $\bx\perp\bone$ we have $\bone\bone\T\bx = 0$, so $L\bx = N\bx$: the
+eigenvalue $N$ has multiplicity $N-1$. Together with $\lambda_1=0$ this is the
+whole spectrum, and $\lambda_2 = N$.
+\end{proof}
+\texttt{VERIFICATION 1} checks this for $N=10,20,30$. It is the first thing to
+run when the eigen-solver or the sign convention of $L$ is in doubt.
+
+\begin{proposition}[Fiedler's degree bound]
+Let $\delta_{\min} = \min_i d_i$. Then
+$\displaystyle \lambda_2 \le \frac{N}{N-1}\,\delta_{\min}$.
+\end{proposition}
+\begin{proof}
+By the Courant--Fischer characterisation,
+$\lambda_2 = \min_{\bx\perp\bone,\ \bx\ne0}\ \bx\T L\bx/\bx\T\bx$, so any
+particular $\bx\perp\bone$ gives an upper bound. Let $v$ be a node of minimum
+degree and take $\bx = e_v - \tfrac1N\bone$ (orthogonal to $\bone$ since its
+entries sum to $1-1=0$). Every edge at $v$ contributes $(x_v - x_j)^2 = 1$ and
+every other edge contributes $0$, so $\bx\T L\bx = d_v = \delta_{\min}$.
+Also $\bx\T\bx = (1-\tfrac1N)^2 + (N-1)\tfrac1{N^2} = \tfrac{N-1}{N}$. Hence
+$\lambda_2 \le \delta_{\min}\cdot\tfrac{N}{N-1}$.
+\end{proof}
+
+\textbf{A correction recorded honestly.} The first draft of the script tested
+the \emph{wrong} bound $\lambda_2\le\delta_{\min}$ and failed on 16{,}195
+graphs. The failure was correct: for $K_N$, $\lambda_2=N$ exceeds
+$\delta_{\min}=N-1$. The bound above is the right one and passes on all
+graphs. A verification that can fail is worth more than one that cannot.
+
+\section{Why $\lambda_2$ and not ``number of live links''}
+
+Two graphs with the same number of links can differ completely: 20 links
+scattered evenly leave a network in one piece; 20 links concentrated on the
+only path between two clusters, if removed, split it. $\lambda_2$ sees the
+structure. It also has a dynamical meaning: for the consensus dynamics
+$\dot{\bx} = -L\bx$ (each node moves toward the average of its neighbours ---
+the basic model of formation keeping), the disagreement decays as
+$e^{-\lambda_2 t}$. Small $\lambda_2$ therefore means \emph{slow} coordination
+before it means \emph{no} coordination, which is the early warning that a
+binary connected/disconnected flag cannot give.
+
+\section{Interpreting the sweeps}
+
+\paragraph{Collapse threshold (figure \texttt{s2\_lambda2\_vs\_js}).}
+For each jammer power the script lets the jammer choose the $\rho$ that
+minimises mean $\lambda_2$, then records the first $J/S$ at which fewer than
+half of the 30 placements remain connected. The thresholds $-10/-8/-6$\,dB for
+$N=10/20/30$ say that, in this geometry, ten more nodes buy about 2\,dB.
+The absolute values depend on the assumed path loss and reference distance;
+the spacing between curves is the robust statement.
+
+\paragraph{The U-shape in $\rho$ (figure \texttt{s2\_lambda2\_vs\_rho}).}
+S1 found the single-link worst case at $\rho^\ast\approx0.14$; the network's
+worst case is an order of magnitude smaller, $\rho\approx0.01$. The reason is
+the outage rule. A link is either up or down; once it is down, raising its BER
+further gains the jammer nothing. From the mixture formula, a link whose jammed
+hops are hopeless ($\Q\to\tfrac12$) has $P_b\approx\rho/2$, so it is down
+whenever $\rho > 2\,\mathrm{BER}_{\mathrm{out}} = 2\times10^{-3}$. The jammer
+therefore does best with the \emph{smallest} $\rho$ that still trips the
+criterion --- it makes a few hops hopeless on as many links as possible ---
+which is why $\lambda_2$ falls as $\rho$ decreases from $1$. Below
+$2\,\mathrm{BER}_{\mathrm{out}}$ the jammed hops are too rare to trip the rule
+and every link recovers, producing the rise on the left. The minimum sits just
+above $2\times10^{-3}$, as observed.
+
+This is a property of the hard-threshold outage model, not of hopping itself.
+Replacing the threshold by a coded-packet error model would change $\rho^\ast$
+--- one of the listed extensions.
+
+\section{Correspondence with the code}
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Mathematics & Code \\
+\midrule
+$A_{ij} = [P_b\le\mathrm{BER}_{\mathrm{out}}]$ & \texttt{a = (ber <= BER\_OUTAGE).astype(int)} \\
+$L = D - A$ & \texttt{lap = np.diag(a.sum(axis=1)) - a} \\
+$\lambda_2$ (2nd smallest, symmetric) & \texttt{np.linalg.eigvalsh(lap)[1]} \\
+connected? (independent) & \texttt{is\_connected\_bfs(a)} \\
+$K_N$: $\lambda_2 = N$ & \texttt{VERIFICATION 1} \\
+$\lambda_2>0\iff$ connected & \texttt{VERIFICATION 2} (0 mismatches / 36{,}090) \\
+$\lambda_2\le\frac{N}{N-1}\delta_{\min}$ & \texttt{VERIFICATION 3} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Self-check}
+\begin{enumerate}[nosep]
+  \item Show that $\bx\T L\bx = \sum_{\text{edges}}(x_i-x_j)^2$ for a triangle
+        graph by writing out $L$ explicitly.
+  \item Prove that $\lambda_1=0$ for every graph. Why is this uninformative?
+  \item Give the argument that the null space of $L$ has dimension equal to
+        the number of components.
+  \item Compute $\lambda_2$ of $K_4$ two ways: from the proposition and by
+        writing $L$ and finding its eigenvalues by hand.
+  \item Explain why the network's worst $\rho$ is about $2\,\mathrm{BER}_{\mathrm{out}}$
+        and not the S1 value $0.14$. Which modelling choice is responsible?
+\end{enumerate}
+
+\end{document}
