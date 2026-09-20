@@ -4,15 +4,25 @@ S0 - BPSK over AWGN: Monte Carlo bit error rate vs. closed-form theory
 
 Purpose
 -------
-This is the calibration step of the whole project. Before simulating jamming
-(S1) or multi-node networks (S2), the simulator must reproduce a result whose
-exact answer is known: the bit error rate (BER) of BPSK in additive white
-Gaussian noise (AWGN),
+Calibration step of the project. Before simulating jamming (S1) or multi-node
+networks (S2), the simulator must reproduce a result whose exact answer is
+known: the bit error rate (BER) of BPSK in additive white Gaussian noise,
 
     BER_theory = Q( sqrt(2 * Eb/N0) ) = 0.5 * erfc( sqrt(Eb/N0) ).
 
-If the Monte Carlo curve does not fall on top of this formula, the simulator is
-wrong, not "approximately right". Every later stage is built on top of this one.
+S1 and S2 reuse the same signal model (r = s + n, threshold at zero), so an
+error here would propagate to every later stage.
+
+Verification
+------------
+Each simulated point is compared with theory through its z-score
+
+    z = (K - n*p) / sqrt(n*p),
+
+where K is the number of observed errors, n the number of bits and p the
+theoretical BER. If the simulator is correct, z is approximately N(0, 1) at
+every point, whatever the BER. The script passes if all |z| < 4.
+(Derivation: theory/s0_bpsk_awgn_ber.pdf, section 5.)
 
 Outputs
 -------
@@ -22,12 +32,9 @@ results/s0_ber_results.csv     numeric results used for the plot
 
 Reproducibility
 ---------------
-All randomness comes from a single numpy Generator with a fixed seed, so
-re-running this script reproduces the same numbers and figures exactly.
+All randomness comes from a single numpy Generator with a fixed seed.
 
-Parameters
-----------
-All parameters are pedagogical values, NOT specifications of any real radio.
+Parameters are assumed values chosen for the study (see README).
 """
 
 import csv
@@ -38,14 +45,15 @@ import matplotlib.pyplot as plt
 from scipy.special import erfc
 
 # ---------------------------------------------------------------------------
-# Parameters (assumed / pedagogical values; see docstring)
+# Parameters
 # ---------------------------------------------------------------------------
 SEED = 2026                       # fixed seed for reproducibility
 EBN0_DB = np.arange(0, 10, 1.0)   # Eb/N0 sweep [dB]; 0..9 dB in 1 dB steps
 
 BITS_PER_CHUNK = 1_000_000        # bits simulated per chunk
-MIN_ERRORS = 200                  # stop a point once this many errors are seen
+MIN_ERRORS = 200                  # keep simulating until at least this many errors
 MAX_BITS = 40_000_000             # hard cap per point (limits run time)
+Z_LIMIT = 4.0                     # pass criterion on |z| (see docstring)
 
 # Where to write outputs (paths relative to the repository root)
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,8 +93,7 @@ def simulate_ber_point(ebn0_db, rng):
         With Eb = 1, the one-sided noise PSD is N0 = Eb / (Eb/N0).
         A real-valued AWGN sample has variance N0/2, so
         sigma = sqrt(N0 / 2) = sqrt(1 / (2 * Eb/N0)).
-        Getting this factor of 2 wrong is the most common reason a simulated
-        BER curve does not match theory.
+        Using N0 instead of N0/2 shifts the whole curve by exactly 3 dB.
 
     Returns (ber, n_bits, n_errors).
     """
@@ -115,31 +122,35 @@ def main():
 
     ber_sim = np.zeros_like(EBN0_DB)
     ber_theory = ber_bpsk_theory(db_to_linear(EBN0_DB))
+    z_scores = np.zeros_like(EBN0_DB)
     rows = []
 
-    print(f"{'Eb/N0[dB]':>9} {'BER_sim':>12} {'BER_theory':>12} {'ratio':>7} {'bits':>10} {'errors':>7}")
+    print(f"{'Eb/N0[dB]':>9} {'BER_sim':>12} {'BER_theory':>12} {'ratio':>7} {'bits':>10} {'errors':>7} {'z':>6}")
     for i, ebn0_db in enumerate(EBN0_DB):
         ber, n_bits, n_err = simulate_ber_point(ebn0_db, rng)
         ber_sim[i] = ber
         ratio = ber / ber_theory[i]
-        rows.append((ebn0_db, ber, ber_theory[i], ratio, n_bits, n_err))
-        print(f"{ebn0_db:9.1f} {ber:12.3e} {ber_theory[i]:12.3e} {ratio:7.3f} {n_bits:10d} {n_err:7d}")
+        expected = n_bits * ber_theory[i]                 # expected number of errors n*p
+        z_scores[i] = (n_err - expected) / np.sqrt(expected)
+        rows.append((ebn0_db, ber, ber_theory[i], ratio, n_bits, n_err, z_scores[i]))
+        print(f"{ebn0_db:9.1f} {ber:12.3e} {ber_theory[i]:12.3e} {ratio:7.3f} {n_bits:10d} {n_err:7d} {z_scores[i]:6.2f}")
 
     # -----------------------------------------------------------------------
-    # Verification: the ratio sim/theory must stay close to 1.
-    # With >= 200 errors per point the statistical spread of the ratio is a
-    # few percent; a systematic deviation (all ratios > 1.3 or < 0.7, or a
-    # different slope) indicates a bug, not noise.
+    # Verification: every point within Z_LIMIT standard deviations of theory.
+    # The number of errors differs a lot between points (about 80,000 at 0 dB,
+    # about 200 at 9 dB), so a fixed band on the ratio would be far too loose
+    # at low Eb/N0. The z-score scales the tolerance to each point.
     # -----------------------------------------------------------------------
+    ok = bool(np.all(np.abs(z_scores) < Z_LIMIT))
     ratios = ber_sim / ber_theory
-    ok = np.all((ratios > 0.7) & (ratios < 1.4))
     print("\nVERIFICATION:", "PASS" if ok else "FAIL",
-          f"(ratio range {ratios.min():.3f} .. {ratios.max():.3f})")
+          f"(max |z| = {np.abs(z_scores).max():.2f}, limit {Z_LIMIT:.0f}; "
+          f"ratio range {ratios.min():.3f} .. {ratios.max():.3f})")
 
     # Save numeric results
     with open(RES_DIR / "s0_ber_results.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["ebn0_db", "ber_sim", "ber_theory", "ratio", "n_bits", "n_errors"])
+        w.writerow(["ebn0_db", "ber_sim", "ber_theory", "ratio", "n_bits", "n_errors", "z_score"])
         w.writerows(rows)
 
     # -----------------------------------------------------------------------
@@ -157,8 +168,7 @@ def main():
     plt.close()
 
     # -----------------------------------------------------------------------
-    # Figure 2: what the receiver actually sees.
-    # Histogram of received samples r = s + n for two Eb/N0 values.
+    # Figure 2: histogram of received samples r = s + n for two Eb/N0 values.
     # Errors are the parts of each bell that cross the decision threshold r=0.
     # -----------------------------------------------------------------------
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
@@ -174,7 +184,7 @@ def main():
         ax.set_xlabel("received sample r")
         ax.grid(True)
     axes[0].set_ylabel("probability density")
-    axes[1].legend(loc="upper right", fontsize=8)
+    axes[0].legend(loc="upper left", fontsize=8)      # the left panel has free space above the bells
     fig.suptitle("Received samples: overlap across the threshold is the error probability")
     fig.savefig(FIG_DIR / "s0_received_hist.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
