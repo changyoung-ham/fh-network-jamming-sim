@@ -17,12 +17,12 @@
 \maketitle
 
 \noindent\textbf{Purpose.}
-S0 is the calibration stage of the repository: the simulator must reproduce a
-result whose exact answer is known before it is used on problems (S1, S2) that
-have no closed form. This note derives that answer, maps every symbol to a line
-of the code, and explains what the ``ratio $0.96$--$1.03$'' verification actually
-proves. Mathematics used: Gaussian random variables, conditional probability,
-the binomial estimator.
+S0 is the calibration stage of the repository. S1 and S2 reuse its signal model
+($r=s+n$, threshold at zero), so the simulator is first required to reproduce a
+result whose exact answer is known. This note derives that answer, maps every
+symbol to a line of the code, and derives the statistical test the script uses
+to decide whether simulation and theory agree. Mathematics used: Gaussian
+random variables, conditional probability, the binomial estimator.
 
 \section{Signal model}
 
@@ -38,16 +38,16 @@ decision variable is a single real number
 \]
 
 \paragraph{Where $\sigma^2 = N_0/2$ comes from.}
-$N_0$ is the \emph{one-sided} noise power spectral density (power per Hz of
-positive frequency). A real matched filter for a unit-energy pulse has a noise
-output variance equal to $N_0/2$ --- half of the density, because the two-sided
-spectrum spreads $N_0$ over positive and negative frequencies at $N_0/2$ each.
-Hence
+$N_0$ is the \emph{one-sided} noise power spectral density, so the two-sided
+density is $N_0/2$. Passing white noise through a filter with impulse response
+$h(t)$ gives an output variance
 \[
-  \sigma^2 = \frac{N_0}{2}.
+  \sigma^2 = \int_{-\infty}^{\infty}\frac{N_0}{2}\,|H(f)|^2\,df
+           = \frac{N_0}{2}\int_{-\infty}^{\infty}|h(t)|^2\,dt
+           = \frac{N_0}{2}
 \]
-\emph{This factor of two is the single most common source of a simulated BER
-curve that is ``a few dB off'' from theory.}
+for a unit-energy matched filter (the middle step is Parseval's relation).
+Using $\sigma^2=N_0$ instead shifts the whole simulated curve by exactly 3\,dB.
 
 \section{The decision rule and the error event}
 
@@ -73,21 +73,23 @@ $P(\text{error}\mid b=0)$ is identical, so the average bit error rate is
   \label{eq:ber}
 \end{equation}
 
-\paragraph{Stop here and check.}
-Put $E_b=1$, $\EbNo = 10$ (10\,dB). Then $\sigma = \sqrt{1/20}=0.2236$ and the
-argument of $\Q$ is $1/0.2236 = 4.47$. Confirm from a table or code that
-$\Q(4.47)\approx 3.9\times10^{-6}$, which is the last point of the S0 curve.
+\paragraph{Numerical check.}
+The last point of the S0 sweep is $\EbNo = 9$\,dB $=7.94$. With $E_b=1$,
+$\sigma = \sqrt{1/15.89}=0.2509$ and the argument of $\Q$ is $1/0.2509 = 3.986$,
+so $\mathrm{BER}=\Q(3.986) = 3.36\times10^{-5}$, the value in
+\texttt{results/s0\_ber\_results.csv}. At $\EbNo=10$\,dB, the thermal-noise
+condition used in S1, the same calculation gives $\Q(4.47)=3.9\times10^{-6}$.
 
 \section{$\Q$ and $\erfc$}
 
-The code uses \texttt{scipy.special.erfc} because SciPy does not ship $\Q$
+The code uses \texttt{scipy.special.erfc} because SciPy does not provide $\Q$
 directly. The two are related by
 \[
   \Q(x) = \tfrac12\,\erfc\!\left(\tfrac{x}{\sqrt2}\right)
   \quad\Longrightarrow\quad
   \mathrm{BER} = \tfrac12\,\erfc\!\left(\sqrt{\tfrac{E_b}{N_0}}\right),
 \]
-which is exactly \texttt{ber\_bpsk\_theory()} in the script.
+which is \texttt{ber\_bpsk\_theory()} in the script.
 
 \section{Correspondence with the code}
 
@@ -107,6 +109,7 @@ $r = s+n$ & \texttt{received = symbols + noise} \\
 $\hat b = [r>0]$ & \texttt{decisions = (received > 0).astype(int)} \\
 count $\hat b \ne b$ & \texttt{n\_errors += np.sum(decisions != bits)} \\
 Eq.~\eqref{eq:ber} & \texttt{0.5 * erfc(np.sqrt(ebn0\_linear))} \\
+$z$-score, Eq.~\eqref{eq:z} & \texttt{(n\_err - expected) / np.sqrt(expected)} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -114,55 +117,55 @@ Eq.~\eqref{eq:ber} & \texttt{0.5 * erfc(np.sqrt(ebn0\_linear))} \\
 Note that \texttt{scale} in \texttt{rng.normal} is the standard deviation
 $\sigma$, not the variance $\sigma^2$.
 
-\section{What the Monte Carlo estimate is, and how accurate}
+\section{Accuracy of the Monte Carlo estimate and the pass criterion}
 
 The simulator observes $K$ errors in $n$ bits and reports $\widehat{\mathrm{BER}} = K/n$.
 Each bit is an independent Bernoulli trial with success probability $p=\mathrm{BER}$,
 so $K\sim\mathrm{Binomial}(n,p)$ and
 \[
-  \mathbb E[\widehat{\mathrm{BER}}] = p, \qquad
-  \operatorname{Var}[\widehat{\mathrm{BER}}] = \frac{p(1-p)}{n}\approx\frac{p}{n}.
+  \mathbb E[K] = np, \qquad
+  \operatorname{Var}[K] = np(1-p)\approx np .
 \]
-The \emph{relative} standard deviation is therefore
-\[
-  \frac{\sqrt{p/n}}{p} = \frac{1}{\sqrt{np}} = \frac{1}{\sqrt{\mathbb E[K]}}.
-\]
-This is why the script stops each point after \texttt{MIN\_ERRORS = 200} errors
-rather than after a fixed number of bits: 200 observed errors give a relative
-spread of $1/\sqrt{200}\approx 7\%$ regardless of how small $p$ is. It also
-explains why the low-BER points need far more bits (six million at 9\,dB versus
-one million at 0\,dB): the required $n \approx 200/p$ grows as $p$ shrinks.
+The \emph{relative} standard deviation of the estimate is therefore
+$1/\sqrt{np} = 1/\sqrt{\mathbb E[K]}$.
 
-\paragraph{Why the pass band is $0.7 \le \text{ratio} \le 1.4$.}
-With a 7\,\% relative spread, a ratio outside $[0.7,1.4]$ is roughly a
-four-standard-deviation event --- essentially impossible by chance across ten
-points. A ratio outside that band, or all ratios biased to one side, therefore
-indicates a modelling error (usually $\sigma$), not statistical noise. The
-observed range $0.957$--$1.025$ is what an unbiased estimator with $\sim$7\,\%
-spread looks like.
+\paragraph{Stopping rule.}
+The script simulates in chunks of $10^6$ bits and stops a point once at least
+\texttt{MIN\_ERRORS = 200} errors have been seen. This bounds the relative
+spread by $1/\sqrt{200}\approx7\%$ at the \emph{hardest} point: at 9\,dB the
+required $n\approx200/p$ is six million bits. The easy points collect far more
+errors in their first chunk (79{,}271 at 0\,dB, a spread of $0.36\%$), so the
+accuracy differs by a factor of twenty across the sweep.
 
-\section{Why the curve is nearly a straight line on a log axis}
+\paragraph{Pass criterion.}
+Because of that difference a single tolerance on the ratio
+$\widehat{\mathrm{BER}}/\mathrm{BER}$ would be either too loose at 0\,dB or too
+tight at 9\,dB. The script instead standardises each point,
+\begin{equation}
+  z = \frac{K - np}{\sqrt{np}},
+  \label{eq:z}
+\end{equation}
+which is approximately $\mathcal N(0,1)$ at every point if the simulator is
+correct, and requires $|z|<4$. For a correct simulator the probability of
+failing at a given point is $P(|Z|>4) = 6\times10^{-5}$, below $10^{-3}$ for the
+whole ten-point sweep. The observed values lie between $-2.11$ and $+2.22$,
+which is the expected scatter of ten standard normal draws. A modelling error
+is detected easily: $\sigma^2=N_0$ instead of $N_0/2$ gives $z>100$ at every
+point.
+
+\section{Shape of the curve}
 
 For large $x$ the Gaussian tail satisfies
 \[
   \Q(x) \approx \frac{1}{x\sqrt{2\pi}}\,e^{-x^2/2},
 \]
 so with $x^2 = 2\EbNo$ the BER falls like $e^{-\EbNo}$: exponentially in the
-\emph{linear} $\EbNo$. On a log-$y$ axis against $\EbNo$ in dB this is not exactly
-straight, but close to it over the plotted range, and each additional dB buys
-roughly a factor of 1.26 in $\EbNo$ and a much larger factor in BER at the
-high-SNR end. This exponential decay is the benchmark that partial-band jamming
-destroys in S1, where the decay becomes only inverse-linear.
-
-\section{Self-check (answer without this note)}
-\begin{enumerate}[nosep]
-  \item Why is the noise variance $N_0/2$ and not $N_0$? What happens to the
-        simulated curve if the code uses $\sigma^2 = N_0$?
-  \item Derive $P(\text{error}\mid b=1)$ in three lines.
-  \item If you observe 20 errors instead of 200, what is the relative spread of
-        the estimate, and how would the plotted points look?
-  \item At $\EbNo = 9$\,dB the script used 6\,million bits. Explain the number.
-  \item Why is $\Q(\sqrt{2\EbNo})$ the same as $\tfrac12\erfc(\sqrt{\EbNo})$?
-\end{enumerate}
+\emph{linear} $\EbNo$. Plotted on a log-$y$ axis against linear $\EbNo$ the
+curve would be close to a straight line. Against $\EbNo$ in dB, as in
+\texttt{figures/s0\_ber\_curve.png}, equal steps on the $x$-axis are equal
+\emph{ratios} of $\EbNo$, so the curve bends downward more and more steeply
+(the ``waterfall'' shape). This exponential decay is the benchmark that
+partial-band jamming removes in S1, where the decay becomes only
+inverse-linear.
 
 \end{document}
