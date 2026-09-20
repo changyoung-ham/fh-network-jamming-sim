@@ -1,11 +1,13 @@
-Hop channels N_CH             : 100
-Processing gain G_p           : 20.00 dB
-Thermal Eb/N0                 : 10.0 dB
-Implementation loss L_sys     : 2.0 dB
-Outage criterion BER          : 0.001
+Hop channels N_CH                    : 100
+Processing gain G_p                  : 20.00 dB
+Thermal Eb/N0                        : 10.0 dB
+Implementation loss L_sys            : 2.0 dB
+Outage criterion BER                 : 0.001
 
-Required Eb/N_J, rho = 1      : 9.65 dB  (full-band jammer)
-Required Eb/N_J, worst rho    : 18.95 dB  (jammer-optimal rho)
-Jamming margin,  rho = 1      : 8.35 dB  -> link survives J/S up to this value
-Jamming margin,  worst rho    : -0.95 dB
-Margin lost to smart jamming  : 9.30 dB
+Required Eb/N_J, rho = 1             : 9.61 dB  (full-band jammer)
+Required Eb/N_J, worst rho           : 19.54 dB  (continuous rho, optimum rho = 0.0095)
+Required Eb/N_J, worst rho >= 1/N_CH : 19.53 dB  (optimum rho = 0.0100)
+Jamming margin,  rho = 1             : 8.39 dB  -> link survives J/S up to this value
+Jamming margin,  worst rho           : -1.54 dB
+Jamming margin,  worst rho >= 1/N_CH : -1.53 dB
+Margin lost to partial-band jamming  : 9.93 dB
