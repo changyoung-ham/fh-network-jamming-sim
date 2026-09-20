@@ -3,17 +3,18 @@
 \usepackage{amsmath,amssymb,amsthm,booktabs,hyperref,enumitem}
 \usepackage[T1]{fontenc}
 \usepackage{xcolor}
-\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black}
 \newtheorem{theorem}{Theorem}
 \newtheorem{proposition}{Proposition}
 \newcommand{\bone}{\mathbf 1}
 \newcommand{\Q}{\operatorname{Q}}
 \newcommand{\bx}{\mathbf x}
 \newcommand{\T}{^{\mathsf T}}
+\newcommand{\BERout}{\mathrm{BER}_{\mathrm{out}}}
 \setlength{\parskip}{4pt}
 
 \title{Theory note S2 --- The graph Laplacian, algebraic connectivity $\lambda_2$,\\
-and what the verification checks prove}
+and the link range under partial-band jamming}
 \author{Chang Young Ham}
 \date{September 2026 \quad (accompanies \texttt{src/s2\_network\_lambda2.py})}
 
@@ -21,17 +22,18 @@ and what the verification checks prove}
 \maketitle
 
 \noindent\textbf{Purpose.}
-S2 summarises a whole network by one number, $\lambda_2$. This note explains
-why that number is the right one: it proves the two facts the simulator relies
+S2 summarises a whole network by one number, the algebraic connectivity
+$\lambda_2$ \cite{fiedler}. This note proves the two facts the simulator relies
 on ($\lambda_2>0$ iff connected; $\lambda_2\le\frac{N}{N-1}\delta_{\min}$),
-states what the 36{,}090-graph consistency check verifies, and interprets the
-U-shaped $\lambda_2$--$\rho$ curve. Mathematics used: symmetric matrices,
+states what each verification check tests, shows that in this model a link is
+up exactly when it is shorter than a \emph{link range}, and uses that to
+explain the two sweeps. Mathematics used: symmetric matrices,
 eigenvalues, quadratic forms, the Courant--Fischer characterisation.
 
 \section{From links to a matrix}
 
 Take $N$ nodes. From S1, each pair $(i,j)$ has a bit error rate
-$P_b(d_{ij}, J/S, \rho)$; the link is \emph{up} if $P_b\le\mathrm{BER}_{\mathrm{out}}$.
+$P_b(d_{ij}, J/S, \rho)$; the link is \emph{up} if $P_b\le\BERout$.
 Collect the result in the adjacency matrix
 \[
   A_{ij} = \begin{cases} 1 & \text{link } (i,j) \text{ up},\ i\ne j \\ 0 & \text{otherwise,}\end{cases}
@@ -48,7 +50,7 @@ Its rows sum to zero by construction: $L\bone = D\bone - A\bone = (d_i) - (d_i) 
 \paragraph{(a) $L$ is symmetric, so its eigenvalues are real.}
 $D$ and $A$ are symmetric. Hence $L$ has $N$ real eigenvalues, which we order
 $\lambda_1\le\lambda_2\le\dots\le\lambda_N$, and an orthonormal eigenbasis.
-\texttt{np.linalg.eigvalsh} exploits exactly this (the ``h'' is for Hermitian).
+\texttt{np.linalg.eigvalsh} is the solver for this case (the ``h'' is for Hermitian).
 
 \paragraph{(b) The quadratic form is a sum of squared differences over edges.}
 For any vector $\bx\in\mathbb R^N$,
@@ -57,7 +59,7 @@ For any vector $\bx\in\mathbb R^N$,
              = \sum_{\{i,j\}\in E}(x_i - x_j)^2 \ \ge\ 0 .
   \label{eq:qf}
 \end{equation}
-\textbf{Stop here and check:} expand $\sum_{\{i,j\}\in E}(x_i-x_j)^2$, note that each
+To see the second equality, expand $\sum_{\{i,j\}\in E}(x_i-x_j)^2$: each
 edge contributes $x_i^2 + x_j^2$ (which sums to $\sum_i d_ix_i^2$ over all edges
 touching $i$) and $-2x_ix_j$ (which sums to $-\sum_{i,j}A_{ij}x_ix_j$ since each
 unordered edge appears twice in the double sum).
@@ -65,8 +67,7 @@ unordered edge appears twice in the double sum).
 \paragraph{(c) $\lambda_1 = 0$ always.}
 From (b), $L$ is positive semidefinite, so all $\lambda_k\ge0$; and $L\bone=0$
 shows $0$ is attained with eigenvector $\bone$. Thus $\lambda_1=0$ carries no
-information about the graph --- which is why the second eigenvalue is the one
-that matters.
+information about the graph, which is why the second eigenvalue is used.
 
 \section{Theorem: $\lambda_2>0$ if and only if the graph is connected}
 
@@ -85,12 +86,12 @@ dimension is the number of components $c$. Hence $\lambda_1=\dots=\lambda_c=0$
 and $\lambda_{c+1}>0$; with $c=1$ this reads $\lambda_2>0$.
 \end{proof}
 
-This theorem is why the script can replace an explicit search over the graph by
-one eigenvalue. \texttt{VERIFICATION 2} is a test of the implementation, not of
-the theorem: for every one of the 36{,}090 graphs generated during the sweeps
-it computes both $[\lambda_2>10^{-9}]$ and a breadth-first search, and demands
-they agree. Zero mismatches means the adjacency construction, the Laplacian,
-and the eigen-solver are consistent with a completely independent algorithm.
+\texttt{VERIFICATION 2} is a test of the implementation, not of
+the theorem: for every graph evaluated during the sweeps (87{,}000 evaluations;
+many are repeats, because the same placements are thresholded at different
+ranges) it computes both $[\lambda_2>10^{-9}]$ and a breadth-first search, and
+requires them to agree. Zero mismatches means the adjacency construction, the
+Laplacian, and the eigen-solver are consistent with an independent algorithm.
 (The $10^{-9}$ tolerance absorbs floating-point round-off; $\lambda_2$ of a
 disconnected graph comes back as $\pm10^{-15}$, not exactly $0$.)
 
@@ -105,10 +106,10 @@ subspace $\bx\perp\bone$ we have $\bone\bone\T\bx = 0$, so $L\bx = N\bx$: the
 eigenvalue $N$ has multiplicity $N-1$. Together with $\lambda_1=0$ this is the
 whole spectrum, and $\lambda_2 = N$.
 \end{proof}
-\texttt{VERIFICATION 1} checks this for $N=10,20,30$. It is the first thing to
-run when the eigen-solver or the sign convention of $L$ is in doubt.
+\texttt{VERIFICATION 1} checks this for $N=10,20,30$. It catches a wrong sign
+convention for $L$ or a wrong eigenvalue index.
 
-\begin{proposition}[Fiedler's degree bound]
+\begin{proposition}[Fiedler's degree bound \cite{fiedler}]
 Let $\delta_{\min} = \min_i d_i$. Then
 $\displaystyle \lambda_2 \le \frac{N}{N-1}\,\delta_{\min}$.
 \end{proposition}
@@ -123,51 +124,132 @@ Also $\bx\T\bx = (1-\tfrac1N)^2 + (N-1)\tfrac1{N^2} = \tfrac{N-1}{N}$. Hence
 $\lambda_2 \le \delta_{\min}\cdot\tfrac{N}{N-1}$.
 \end{proof}
 
-\textbf{A correction recorded honestly.} The first draft of the script tested
-the \emph{wrong} bound $\lambda_2\le\delta_{\min}$ and failed on 16{,}195
-graphs. The failure was correct: for $K_N$, $\lambda_2=N$ exceeds
-$\delta_{\min}=N-1$. The bound above is the right one and passes on all
-graphs. A verification that can fail is worth more than one that cannot.
+\textbf{Correction.} The first draft of the script tested
+the bound $\lambda_2\le\delta_{\min}$ and failed on 16{,}195
+graphs. The test was wrong, not the code: for $K_N$, $\lambda_2=N$ exceeds
+$\delta_{\min}=N-1$. The bound above is the correct one and holds on all
+graphs (\texttt{VERIFICATION 3}).
 
 \section{Why $\lambda_2$ and not ``number of live links''}
 
 Two graphs with the same number of links can differ completely: 20 links
 scattered evenly leave a network in one piece; 20 links concentrated on the
-only path between two clusters, if removed, split it. $\lambda_2$ sees the
-structure. It also has a dynamical meaning: for the consensus dynamics
-$\dot{\bx} = -L\bx$ (each node moves toward the average of its neighbours ---
-the basic model of formation keeping), the disagreement decays as
-$e^{-\lambda_2 t}$. Small $\lambda_2$ therefore means \emph{slow} coordination
-before it means \emph{no} coordination, which is the early warning that a
-binary connected/disconnected flag cannot give.
+only path between two clusters, if removed, split it. $\lambda_2$ reflects
+that structure. It also has a dynamical meaning: for the consensus dynamics
+$\dot{\bx} = -L\bx$ (each node moves toward the average of its neighbours),
+the disagreement decays as $e^{-\lambda_2 t}$ \cite{olfati}. A falling
+$\lambda_2$ therefore means \emph{slower} coordination before it means
+\emph{no} coordination, which a binary connected/disconnected flag cannot show.
+For that reason the script records, besides the collapse threshold, the $J/S$
+at which the mean $\lambda_2$ has fallen to half its unjammed value (the
+``knee'').
 
-\section{Interpreting the sweeps}
+\section{Links as a distance threshold}
+
+\paragraph{The link range.}
+In this model the jammer is far from all nodes, so every receiver sees the same
+$J$, while the received signal falls with link length $d$. Both
+$E_b/N_0(d)$ and $E_b/N_J(d)$ decrease with $d$, so the link BER increases with
+$d$, and
+\[
+  P_b(d_{ij})\le\BERout \iff d_{ij}\le r(J/S,\rho),
+\]
+where the \emph{link range} $r$ solves $P_b(r)=\BERout$. The link graph is
+therefore a random geometric graph \cite{penrose}: $N$ uniform points, joined
+when closer than $r$. \texttt{VERIFICATION 5} confirms that the BER rule and
+the distance rule give identical adjacency matrices for every graph of the
+$J/S$ sweep.
+
+\paragraph{The jammer's choice of $\rho$.}
+Removing edges cannot increase $\lambda_2$: by \eqref{eq:qf}, fewer edges make
+$\bx\T L\bx$ smaller for every $\bx$, hence also its minimum over
+$\bx\perp\bone$. A smaller range removes edges, so the $\rho$ that minimises
+$\lambda_2$ is the $\rho$ that minimises $r$. It is the same for every
+placement and every $N$, and the script computes it once per $J/S$ value
+(\texttt{worst\_rho()}). \texttt{VERIFICATION 4} checks the monotonicity
+placement by placement; \texttt{VERIFICATION 6} checks that the $\rho$ with the
+lowest mean $\lambda_2$ on the grid of the $\rho$-sweep is the grid neighbour
+of the range-minimising $\rho$.
+
+\paragraph{Which $\rho$ that is (figure \texttt{s2\_lambda2\_vs\_rho}).}
+Minimising the range means bringing down the strongest possible link, which is
+the question answered in Section~4 of the S1 note:
+\[
+  \rho_{\mathrm{out}} \approx \frac{\BERout}{\Q(\sqrt{x^\ast})} = 8.55\,\BERout = 0.0086 .
+\]
+The exact search gives $0.0091$ at $J/S_{\mathrm{ref}}=-14$\,dB (thermal noise
+moves it slightly) and $\lambda_2$ is lowest at the nearest grid point,
+$0.0089$. This is an order of magnitude below the $0.135$ of the S1 figure, but
+for a simple reason: both are $\rho^\ast=0.709/(E_b/N_J)$, evaluated at
+$E_b/N_J=8$\,dB in the S1 figure and at the outage point $19.2$\,dB here. It is
+not a network effect, and it scales with the assumed criterion
+($\BERout=10^{-2}$ would give $\rho_{\mathrm{out}}=0.086$).
+The rise of $\lambda_2$ on the left of the figure has a separate cause: a
+jammed hop has a BER of at most $\tfrac12$, so $P_b\le\rho/2$ plus the thermal
+term, and no jammer power can bring a link down once $\rho<2\,\BERout$.
+
+\paragraph{One-channel limit.}
+$\rho_{\mathrm{out}}=0.0086$ is just below $1/N_{\mathrm{ch}}=0.01$, the
+smallest fraction a jammer can occupy with 100 channels; the figure shades
+that region. Enforcing $\rho\ge0.01$ changes the range at $-14$\,dB from
+$538.8$\,m to $539.7$\,m and the thresholds below by $0.03$\,dB.
+
+\section{The range--power relation and the collapse threshold}
+
+\paragraph{Closed form.}
+When jamming dominates thermal noise, the longest surviving link has
+$E_b/N_J = 0.0829/\BERout$ (S1 note, Section~4). With
+$E_b/N_J(d) = G_p - J/S_{\mathrm{ref}} - 10n\log_{10}(d/d_{\mathrm{ref}})$ in dB,
+\begin{equation}
+  J/S_{\mathrm{ref}}(r)\,[\mathrm{dB}] \;\approx\; G_p
+  - 10\log_{10}\!\frac{0.0829}{\BERout}
+  - 10\,n\log_{10}\!\frac{r}{d_{\mathrm{ref}}} .
+  \label{eq:rp}
+\end{equation}
+Three consequences:
+\begin{itemize}[nosep]
+  \item every threshold moves by $+10$\,dB per tenfold increase of
+        $N_{\mathrm{ch}}$ (as long as $\rho_{\mathrm{out}}\ge1/N_{\mathrm{ch}}$),
+        and by $-10$\,dB per tenfold \emph{decrease} of $\BERout$;
+  \item the \emph{spacing} between the curves for different $N$ is
+        $10\,n\log_{10}(r_{N_1}/r_{N_2})$: independent of $\BERout$, $G_p$ and
+        $d_{\mathrm{ref}}$, but proportional to the path-loss exponent $n$;
+  \item the absolute values of $J/S_{\mathrm{ref}}$ carry no meaning beyond the
+        chosen $d_{\mathrm{ref}}$; the geometry enters only through $r/L$.
+\end{itemize}
 
 \paragraph{Collapse threshold (figure \texttt{s2\_lambda2\_vs\_js}).}
-For each jammer power the script lets the jammer choose the $\rho$ that
-minimises mean $\lambda_2$, then records the first $J/S$ at which fewer than
-half of the 30 placements remain connected. The thresholds $-10/-8/-6$\,dB for
-$N=10/20/30$ say that, in this geometry, ten more nodes buy about 2\,dB.
-The absolute values depend on the assumed path loss and reference distance;
-the spacing between curves is the robust statement.
+$J/S^\ast$ is defined as the $J/S_{\mathrm{ref}}$ at which half of the random
+placements are still connected. The script sweeps $J/S_{\mathrm{ref}}$ in 1\,dB
+steps over 500 placements per $N$, interpolates the 0.5 crossing linearly, and
+obtains a 95\,\% interval by resampling the placements (bootstrap, 1000
+resamples).
 
-\paragraph{The U-shape in $\rho$ (figure \texttt{s2\_lambda2\_vs\_rho}).}
-S1 found the single-link worst case at $\rho^\ast\approx0.14$; the network's
-worst case is an order of magnitude smaller, $\rho\approx0.01$. The reason is
-the outage rule. A link is either up or down; once it is down, raising its BER
-further gains the jammer nothing. From the mixture formula, a link whose jammed
-hops are hopeless ($\Q\to\tfrac12$) has $P_b\approx\rho/2$, so it is down
-whenever $\rho > 2\,\mathrm{BER}_{\mathrm{out}} = 2\times10^{-3}$. The jammer
-therefore does best with the \emph{smallest} $\rho$ that still trips the
-criterion --- it makes a few hops hopeless on as many links as possible ---
-which is why $\lambda_2$ falls as $\rho$ decreases from $1$. Below
-$2\,\mathrm{BER}_{\mathrm{out}}$ the jammed hops are too rare to trip the rule
-and every link recovers, producing the rise on the left. The minimum sits just
-above $2\times10^{-3}$, as observed.
+\begin{center}
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+$N$ & $J/S^\ast$ [dB] & 95\,\% interval & range at $J/S^\ast$ & Eq.~\eqref{eq:rp} & 50\,\% knee \\
+\midrule
+10 & $-11.79$ & $-11.99\,..\,-11.61$ & $0.421\,L$ & $-11.68$ & $-17.35$ \\
+20 & $-9.42$  & $-9.55\,..\,-9.29$   & $0.323\,L$ & $-9.36$  & $-17.22$ \\
+30 & $-7.92$  & $-8.08\,..\,-7.80$   & $0.272\,L$ & $-7.88$  & $-17.18$ \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-This is a property of the hard-threshold outage model, not of hopping itself.
-Replacing the threshold by a coded-packet error model would change $\rho^\ast$
---- one of the listed extensions.
+Going from 10 to 20 nodes buys 2.4\,dB of jamming tolerance and from 20 to 30
+another 1.5\,dB: the gain per added node shrinks, because the range needed to
+keep $N$ random points connected shrinks more slowly as $N$ grows.
+Eq.~\eqref{eq:rp} reproduces the simulated thresholds within 0.11\,dB
+(\texttt{VERIFICATION 7}); the remainder is thermal noise. The knee, in
+contrast, is almost the same for all three sizes ($-17.2$ to $-17.4$\,dB).
+
+\paragraph{Limits of the model.}
+Both results rest on the hard outage threshold without coding. With a coded
+packet-error model $\rho_{\mathrm{out}}$ and the threshold values would change;
+with a jammer at a finite distance the received $J$ would differ between nodes
+and the graph would no longer be a plain random geometric graph. Both are
+listed as extensions in the README.
 
 \section{Correspondence with the code}
 \begin{center}
@@ -175,28 +257,33 @@ Replacing the threshold by a coded-packet error model would change $\rho^\ast$
 \toprule
 Mathematics & Code \\
 \midrule
-$A_{ij} = [P_b\le\mathrm{BER}_{\mathrm{out}}]$ & \texttt{a = (ber <= BER\_OUTAGE).astype(int)} \\
+$A_{ij} = [P_b\le\BERout]$ & \texttt{adjacency()} \\
 $L = D - A$ & \texttt{lap = np.diag(a.sum(axis=1)) - a} \\
 $\lambda_2$ (2nd smallest, symmetric) & \texttt{np.linalg.eigvalsh(lap)[1]} \\
 connected? (independent) & \texttt{is\_connected\_bfs(a)} \\
+link range $r(J/S,\rho)$ & \texttt{link\_range()} \\
+range-minimising $\rho$ & \texttt{worst\_rho()} \\
+Eq.~\eqref{eq:rp} & \texttt{js\_ref\_closed\_form()} \\
+0.5 crossing, knee & \texttt{crossing()} \\
 $K_N$: $\lambda_2 = N$ & \texttt{VERIFICATION 1} \\
-$\lambda_2>0\iff$ connected & \texttt{VERIFICATION 2} (0 mismatches / 36{,}090) \\
+$\lambda_2>0\iff$ connected & \texttt{VERIFICATION 2} \\
 $\lambda_2\le\frac{N}{N-1}\delta_{\min}$ & \texttt{VERIFICATION 3} \\
+$\lambda_2$ non-increasing in $J/S$ & \texttt{VERIFICATION 4} \\
+BER rule $=$ distance rule & \texttt{VERIFICATION 5} \\
+$\lambda_2$-minimising $\rho$ $=$ range-minimising $\rho$ & \texttt{VERIFICATION 6} \\
+Eq.~\eqref{eq:rp} vs simulation & \texttt{VERIFICATION 7} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\section{Self-check}
-\begin{enumerate}[nosep]
-  \item Show that $\bx\T L\bx = \sum_{\text{edges}}(x_i-x_j)^2$ for a triangle
-        graph by writing out $L$ explicitly.
-  \item Prove that $\lambda_1=0$ for every graph. Why is this uninformative?
-  \item Give the argument that the null space of $L$ has dimension equal to
-        the number of components.
-  \item Compute $\lambda_2$ of $K_4$ two ways: from the proposition and by
-        writing $L$ and finding its eigenvalues by hand.
-  \item Explain why the network's worst $\rho$ is about $2\,\mathrm{BER}_{\mathrm{out}}$
-        and not the S1 value $0.14$. Which modelling choice is responsible?
-\end{enumerate}
+\begin{thebibliography}{9}
+\bibitem{fiedler} M.~Fiedler, ``Algebraic connectivity of graphs,''
+  \emph{Czechoslovak Mathematical Journal}, vol.~23, no.~2, pp.~298--305, 1973.
+\bibitem{olfati} R.~Olfati-Saber, J.~A.~Fax, and R.~M.~Murray, ``Consensus and
+  cooperation in networked multi-agent systems,'' \emph{Proceedings of the
+  IEEE}, vol.~95, no.~1, pp.~215--233, Jan.~2007.
+\bibitem{penrose} M.~Penrose, \emph{Random Geometric Graphs}. Oxford University
+  Press, 2003.
+\end{thebibliography}
 
 \end{document}

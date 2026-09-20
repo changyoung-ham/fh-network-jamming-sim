@@ -1,3 +1,4 @@
-N=10: unjammed lambda_2=9.213, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-10 dB
-N=20: unjammed lambda_2=17.079, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-8 dB
-N=30: unjammed lambda_2=25.259, network-worst rho at J/S_ref=-14 dB: 0.01, collapse threshold J/S*=-6 dB
+Placements per N: 500; unjammed link range 1025 m; network-worst rho at J/S_ref = -14 dB: 0.00906 (one channel = 0.01)
+N=10: unjammed lambda_2=8.89, collapse threshold J/S*=-11.79 dB (95% CI -11.99..-11.61), with rho>=1/N_CH: -11.76 dB, link range at threshold=421 m (0.421 L), closed form=-11.68 dB, 50% knee of mean lambda_2=-17.35 dB
+N=20: unjammed lambda_2=16.78, collapse threshold J/S*=-9.42 dB (95% CI -9.55..-9.29), with rho>=1/N_CH: -9.39 dB, link range at threshold=323 m (0.323 L), closed form=-9.36 dB, 50% knee of mean lambda_2=-17.22 dB
+N=30: unjammed lambda_2=24.86, collapse threshold J/S*=-7.92 dB (95% CI -8.08..-7.80), with rho>=1/N_CH: -7.89 dB, link range at threshold=272 m (0.272 L), closed form=-7.88 dB, 50% knee of mean lambda_2=-17.18 dB
