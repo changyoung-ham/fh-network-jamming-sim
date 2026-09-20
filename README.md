@@ -1,4 +1,4 @@
-# swarm-network-jamming-sim
+# Connectivity of a frequency-hopping network under partial-band jamming
 
 Simulation study of how the connectivity of a multi-node frequency-hopping
 network degrades under partial-band jamming, measured by the algebraic
@@ -15,8 +15,12 @@ reasons in [Parameters](#parameters); nothing here models a specific radio.
 
 N nodes are placed at random in a square of side L and a distant partial-band
 jammer uses the band fraction ρ that damages the network most. J/S\* is the
-jammer power (J/S at the 100 m reference distance) at which half of 500 random
-placements are no longer connected.
+jammer-to-signal ratio, referred to a 100 m link, at which half of 500 random
+placements are no longer connected. The values are negative only because of
+that reference: a longer link receives a weaker signal and therefore a higher
+J/S. At J/S\*, the longest surviving link (0.42 L for N = 10) receives
+J/S ≈ +0.7 dB, and about +0.8 dB for N = 20 and 30. That is the single-link
+outage point of S1, where the worst-case BER reaches 10⁻³.
 
 | N | J/S\* (95 % interval) | link range at J/S\* | closed form (S2 note, Eq. 2) | 50 % knee of mean λ₂ |
 |---|---|---|---|---|
@@ -35,10 +39,10 @@ placements are no longer connected.
 
 ## Motivation
 
-In a swarm of cooperating nodes, individual links fail as jamming intensifies.
+In a multi-node wireless network, individual links fail as jamming intensifies.
 Counting failed links does not tell you whether the network is still one piece.
 The Laplacian eigenvalue λ₂ does: it is zero when the graph is disconnected,
-and it sets the convergence rate of consensus-type coordination [4], so it
+and it sets the convergence rate of consensus-type coordination [1], so it
 falls before the network breaks. The question this project asks is
 
 > As a partial-band jammer raises its power and picks its most damaging band
@@ -62,8 +66,7 @@ increase of N_CH (S2 note, Section 7).
 |------:|---------|--------------|--------|
 | S0 | BPSK over AWGN, Monte Carlo BER | Must match Q(√(2Eb/N0)); z-score of every point | **done** (max \|z\| = 2.2 over 10 points) |
 | S1 | FH + partial-band jammer, BER vs J/S, jamming margin | Monte Carlo vs closed-form mixture at 44 points; ρ=1 limit; optimiser vs analytical constants 0.709 / 0.0829 | **done** (max \|z\| = 1.9) |
-| S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [3]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
-| S3 | Channel re-allocation after detection, λ₂ recovery | Recovery ratio vs. no-jamming baseline | optional |
+| S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [2]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
 
 ## Repository layout
 
@@ -89,7 +92,7 @@ argument and the closed-form threshold (S2).
 
 ```bash
 conda env create -f environment.yml
-conda activate swarm-sim
+conda activate fh-jamming-sim
 python src/s0_bpsk_awgn_ber.py
 python src/s1_fh_partial_band_jamming.py
 python src/s2_network_lambda2.py
@@ -126,7 +129,7 @@ With N_CH = 100 hop channels (processing gain 20 dB) and thermal Eb/N0 = 10 dB:
 
 Concentrating its power on the right fraction of the band costs the link 9.9 dB
 of margin. Against the optimal ρ the BER falls only as 0.083/(Eb/N_J) instead
-of exponentially [1, 2]. At J/S = 12 dB the worst-case ρ is 0.135 and the BER is
+of exponentially [3, 4]. At J/S = 12 dB the worst-case ρ is 0.135 and the BER is
 5.2× that of a full-band jammer of the same power (figure
 `s1_ber_vs_rho.png`). Monte Carlo points agree with the closed-form mixture at
 all 44 (J/S, ρ) points.
@@ -167,24 +170,36 @@ down, which is the rise on the left.
 
 - Coherent BPSK is used because it continues the S0 model and has a closed-form
   BER. Frequency-hopping systems more commonly use noncoherent FSK, for which
-  the worst-case law has the same 1/(Eb/N_J) form with a different constant [1].
+  the worst-case law has the same 1/(Eb/N_J) form with a different constant [3].
 - AWGN and free-space path loss; no fading, shadowing, or timing/phase error.
 - Jamming is a known input with a fixed band fraction; detection latency and
   jammer classification are out of scope.
 - The jammer is far from all nodes (equal received J everywhere) and does not
   know the hopping pattern. A jammer at a finite distance would make J differ
   between nodes; the graph would then no longer be a plain random geometric graph.
-- Nodes are static; no mobility, no re-routing, no channel re-allocation (S3).
+- Nodes are static; no mobility, no re-routing, no channel re-allocation.
 - Each node is assumed to observe the full link graph.
 - Link outage is a hard BER threshold; no coding or interleaving. The
   network-worst ρ and the absolute thresholds depend on this choice.
 
+## Possible extensions (not started)
+
+Each item removes one of the assumptions above.
+
+- Channel re-allocation after the jammed band is detected, and how much of λ₂
+  it recovers, with the detection delay as a parameter.
+- A jammer at a finite distance, so that the received J differs between nodes.
+- Noncoherent FSK and a coded packet-error criterion instead of a hard BER
+  threshold.
+- Fading and shadowing on the links.
+- Moving nodes, and λ₂ estimated by each node from local information only.
+
 ## References
 
-1. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12.
-2. M. K. Simon, J. K. Omura, R. A. Scholtz, B. K. Levitt, *Spread Spectrum Communications Handbook*, rev. ed., McGraw-Hill, 1994.
-3. M. Fiedler, "Algebraic connectivity of graphs," *Czechoslovak Mathematical Journal*, vol. 23, no. 2, pp. 298–305, 1973.
-4. R. Olfati-Saber, J. A. Fax, R. M. Murray, "Consensus and cooperation in networked multi-agent systems," *Proceedings of the IEEE*, vol. 95, no. 1, pp. 215–233, 2007.
+1. R. Olfati-Saber, J. A. Fax, R. M. Murray, "Consensus and cooperation in networked multi-agent systems," *Proceedings of the IEEE*, vol. 95, no. 1, pp. 215–233, 2007.
+2. M. Fiedler, "Algebraic connectivity of graphs," *Czechoslovak Mathematical Journal*, vol. 23, no. 2, pp. 298–305, 1973.
+3. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12.
+4. M. K. Simon, J. K. Omura, R. A. Scholtz, B. K. Levitt, *Spread Spectrum Communications Handbook*, rev. ed., McGraw-Hill, 1994.
 5. M. Penrose, *Random Geometric Graphs*, Oxford University Press, 2003.
 
 ## Author

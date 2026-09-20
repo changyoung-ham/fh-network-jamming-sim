@@ -1,7 +1,7 @@
 # Conda environment for this repository.
 # Create with:   conda env create -f environment.yml
-# Activate with: conda activate swarm-sim
-name: swarm-sim
+# Activate with: conda activate fh-jamming-sim
+name: fh-jamming-sim
 channels:
   - conda-forge
 dependencies:
