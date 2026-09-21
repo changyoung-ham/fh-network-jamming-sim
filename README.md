@@ -2,7 +2,7 @@
 
 Simulation study of how the connectivity of a multi-node frequency-hopping
 network degrades under partial-band jamming, measured by the algebraic
-connectivity (second-smallest Laplacian eigenvalue, λ₂) of the link graph.
+connectivity [1] (second-smallest Laplacian eigenvalue, λ₂) of the link graph.
 
 This is a self-directed learning project built in stages. Each stage is
 verified against a closed-form result or a known limiting case before the next
@@ -19,8 +19,9 @@ jammer-to-signal ratio, referred to a 100 m link, at which half of 500 random
 placements are no longer connected. The values are negative only because of
 that reference: a longer link receives a weaker signal and therefore a higher
 J/S. At J/S\*, the longest surviving link (0.42 L for N = 10) receives
-J/S ≈ +0.7 dB, and about +0.8 dB for N = 20 and 30. That is the single-link
-outage point of S1, where the worst-case BER reaches 10⁻³.
+J/S ≈ +0.7 dB, and about +0.8 dB for N = 20 and 30. This is the single-link
+outage condition of S1: the worst-case BER reaches 10⁻³ at Eb/N_J ≈ 19.2–19.5 dB,
+i.e. at a received J/S of +0.5 to +0.8 dB depending on the thermal noise.
 
 | N | J/S\* (95 % interval) | link range at J/S\* | closed form (S2 note, Eq. 2) | 50 % knee of mean λ₂ |
 |---|---|---|---|---|
@@ -41,9 +42,10 @@ outage point of S1, where the worst-case BER reaches 10⁻³.
 
 In a multi-node wireless network, individual links fail as jamming intensifies.
 Counting failed links does not tell you whether the network is still one piece.
-The Laplacian eigenvalue λ₂ does: it is zero when the graph is disconnected,
-and it sets the convergence rate of consensus-type coordination [1], so it
-falls before the network breaks. The question this project asks is
+The Laplacian eigenvalue λ₂ does: it is zero exactly when the graph is
+disconnected, and it sets the convergence speed of consensus-type coordination
+[2], so it already shrinks while the network is still in one piece. The
+question this project asks is
 
 > As a partial-band jammer raises its power and picks its most damaging band
 > fraction ρ, at what J/S does the network stop being connected, and how does
@@ -66,7 +68,7 @@ increase of N_CH (S2 note, Section 7).
 |------:|---------|--------------|--------|
 | S0 | BPSK over AWGN, Monte Carlo BER | Must match Q(√(2Eb/N0)); z-score of every point | **done** (max \|z\| = 2.2 over 10 points) |
 | S1 | FH + partial-band jammer, BER vs J/S, jamming margin | Monte Carlo vs closed-form mixture at 44 points; ρ=1 limit; optimiser vs analytical constants 0.709 / 0.0829 | **done** (max \|z\| = 1.9) |
-| S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [2]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
+| S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [1]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
 
 ## Repository layout
 
@@ -115,7 +117,7 @@ threshold, and the overlap shrinks as Eb/N0 grows.
 
 ![Received samples](figures/s0_received_hist.png)
 
-## S1 result — a partial-band jammer removes most of the processing gain
+## S1 result — the right band fraction costs the link 9.9 dB
 
 ![BER vs J/S](figures/s1_ber_vs_js.png)
 
@@ -129,7 +131,8 @@ With N_CH = 100 hop channels (processing gain 20 dB) and thermal Eb/N0 = 10 dB:
 
 Concentrating its power on the right fraction of the band costs the link 9.9 dB
 of margin. Against the optimal ρ the BER falls only as 0.083/(Eb/N_J) instead
-of exponentially [3, 4]. At J/S = 12 dB the worst-case ρ is 0.135 and the BER is
+of exponentially (derived in the S1 note; partial-band and pulse noise jamming
+are textbook material, e.g. [3], Sec. 12.6). At J/S = 12 dB the worst-case ρ is 0.135 and the BER is
 5.2× that of a full-band jammer of the same power (figure
 `s1_ber_vs_rho.png`). Monte Carlo points agree with the closed-form mixture at
 all 44 (J/S, ρ) points.
@@ -142,7 +145,7 @@ The main figure and table are at the top of this page.
 
 Because the jammer is far away, every receiver sees the same J and a link is up
 exactly when it is shorter than a link range r(J/S, ρ); the link graph is a
-random geometric graph [5]. The jammer's best ρ is the one that minimises that
+random geometric graph [4]. The jammer's best ρ is the one that minimises that
 range. It is ρ ≈ 8.55 × BER_out ≈ 0.009, the same for every N and placement.
 This is the S1 formula ρ\* = 0.709/(Eb/N_J) evaluated at the outage point
 (Eb/N_J = 19.2 dB) instead of at the 8 dB of the S1 figure, not a separate
@@ -166,11 +169,12 @@ down, which is the rise on the left.
 | Area side L | 1 km | sets the scale only; results are also given as r/L |
 | Placements per N | 500 | 95 % interval of J/S\* within ±0.2 dB (bootstrap) |
 
-## Assumptions and limitations (current)
+## Assumptions and limitations
 
 - Coherent BPSK is used because it continues the S0 model and has a closed-form
-  BER. Frequency-hopping systems more commonly use noncoherent FSK, for which
-  the worst-case law has the same 1/(Eb/N_J) form with a different constant [3].
+  BER. Frequency-hopping systems more commonly use noncoherent FSK; the same
+  argument then gives a 1/(Eb/N_J) law with a different constant (S1 note,
+  Section 3).
 - AWGN and free-space path loss; no fading, shadowing, or timing/phase error.
 - Jamming is a known input with a fixed band fraction; detection latency and
   jammer classification are out of scope.
@@ -179,6 +183,11 @@ down, which is the rise on the left.
   between nodes; the graph would then no longer be a plain random geometric graph.
 - Nodes are static; no mobility, no re-routing, no channel re-allocation.
 - Each node is assumed to observe the full link graph.
+- Links do not interfere with one another: hop collisions between node pairs,
+  adjacent-channel leakage and medium access are not modelled.
+- The link ranges in the main table belong to a finite square with 10–30 nodes,
+  where nodes near the edge have fewer neighbours; they should not be
+  extrapolated to much larger networks.
 - Link outage is a hard BER threshold; no coding or interleaving. The
   network-worst ρ and the absolute thresholds depend on this choice.
 
@@ -196,11 +205,10 @@ Each item removes one of the assumptions above.
 
 ## References
 
-1. R. Olfati-Saber, J. A. Fax, R. M. Murray, "Consensus and cooperation in networked multi-agent systems," *Proceedings of the IEEE*, vol. 95, no. 1, pp. 215–233, 2007.
-2. M. Fiedler, "Algebraic connectivity of graphs," *Czechoslovak Mathematical Journal*, vol. 23, no. 2, pp. 298–305, 1973.
-3. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12.
-4. M. K. Simon, J. K. Omura, R. A. Scholtz, B. K. Levitt, *Spread Spectrum Communications Handbook*, rev. ed., McGraw-Hill, 1994.
-5. M. Penrose, *Random Geometric Graphs*, Oxford University Press, 2003.
+1. M. Fiedler, "Algebraic connectivity of graphs," *Czechoslovak Mathematical Journal*, vol. 23, no. 2, pp. 298–305, 1973.
+2. R. Olfati-Saber, J. A. Fax, R. M. Murray, "Consensus and cooperation in networked multi-agent systems," *Proceedings of the IEEE*, vol. 95, no. 1, pp. 215–233, Jan. 2007.
+3. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12 (Spread-Spectrum Techniques).
+4. M. Penrose, *Random Geometric Graphs*, Oxford University Press, 2003.
 
 ## Author
 
