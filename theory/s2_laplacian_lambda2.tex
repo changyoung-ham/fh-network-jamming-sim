@@ -23,12 +23,11 @@ and the link range under partial-band jamming}
 
 \noindent\textbf{Purpose.}
 S2 summarises a whole network by one number, the algebraic connectivity
-$\lambda_2$ \cite{fiedler}. This note proves the two facts the simulator relies
-on ($\lambda_2>0$ iff connected; $\lambda_2\le\frac{N}{N-1}\delta_{\min}$),
-states what each verification check tests, shows that in this model a link is
+$\lambda_2$ \cite{fiedler}. This note proves the fact the simulator relies
+on ($\lambda_2>0$ iff connected), states what each verification check tests, shows that in this model a link is
 up exactly when it is shorter than a \emph{link range}, and uses that to
 explain the two sweeps. Mathematics used: symmetric matrices,
-eigenvalues, quadratic forms, the Courant--Fischer characterisation.
+eigenvalues, quadratic forms.
 
 \section{From links to a matrix}
 
@@ -50,7 +49,6 @@ Its rows sum to zero by construction: $L\bone = D\bone - A\bone = (d_i) - (d_i) 
 \paragraph{(a) $L$ is symmetric, so its eigenvalues are real.}
 $D$ and $A$ are symmetric. Hence $L$ has $N$ real eigenvalues, which we order
 $\lambda_1\le\lambda_2\le\dots\le\lambda_N$, and an orthonormal eigenbasis.
-\texttt{np.linalg.eigvalsh} is the solver for this case (the ``h'' is for Hermitian).
 
 \paragraph{(b) The quadratic form is a sum of squared differences over edges.}
 For any vector $\bx\in\mathbb R^N$,
@@ -109,35 +107,20 @@ whole spectrum, and $\lambda_2 = N$.
 \texttt{VERIFICATION 1} checks this for $N=10,20,30$. It catches a wrong sign
 convention for $L$ or a wrong eigenvalue index.
 
-\begin{proposition}[Fiedler's degree bound \cite{fiedler}]
-Let $\delta_{\min} = \min_i d_i$. Then
-$\displaystyle \lambda_2 \le \frac{N}{N-1}\,\delta_{\min}$.
-\end{proposition}
-\begin{proof}
-By the Courant--Fischer characterisation,
-$\lambda_2 = \min_{\bx\perp\bone,\ \bx\ne0}\ \bx\T L\bx/\bx\T\bx$, so any
-particular $\bx\perp\bone$ gives an upper bound. Let $v$ be a node of minimum
-degree and take $\bx = e_v - \tfrac1N\bone$ (orthogonal to $\bone$ since its
-entries sum to $1-1=0$). Every edge at $v$ contributes $(x_v - x_j)^2 = 1$ and
-every other edge contributes $0$, so $\bx\T L\bx = d_v = \delta_{\min}$.
-Also $\bx\T\bx = (1-\tfrac1N)^2 + (N-1)\tfrac1{N^2} = \tfrac{N-1}{N}$. Hence
-$\lambda_2 \le \delta_{\min}\cdot\tfrac{N}{N-1}$.
-\end{proof}
-
-\textbf{Correction.} The first draft of the script tested
-the bound $\lambda_2\le\delta_{\min}$ and failed on 16{,}195
-graphs. The test was wrong, not the code: for $K_N$, $\lambda_2=N$ exceeds
-$\delta_{\min}=N-1$. The bound above is the correct one and holds on all
-graphs (\texttt{VERIFICATION 3}).
+\paragraph{Degree bound.}
+Fiedler \cite[3.5]{fiedler} showed that $\lambda_2 \le \frac{N}{N-1}\,\delta_{\min}$,
+where $\delta_{\min}$ is the smallest node degree; $K_N$ attains it with
+equality. The bound is used here without proof, as a third consistency check on
+every graph (\texttt{VERIFICATION 3}).
 
 \section{Why $\lambda_2$ and not ``number of live links''}
 
-Two graphs with the same number of links can differ completely: 20 links
-scattered evenly leave a network in one piece; 20 links concentrated on the
-only path between two clusters, if removed, split it. $\lambda_2$ reflects
-that structure. It also has a dynamical meaning: for the consensus dynamics
+The number of live links does not say where they are: losing the few links
+that join two clusters splits the network, losing the same number elsewhere
+does not. $\lambda_2$ reflects that structure. It also has a dynamical meaning: for the consensus dynamics
 $\dot{\bx} = -L\bx$ (each node moves toward the average of its neighbours),
-the disagreement decays as $e^{-\lambda_2 t}$ \cite{olfati}. A falling
+the disagreement decays at least as fast as $e^{-\lambda_2 t}$
+\cite[Corollary~1]{olfati}. A falling
 $\lambda_2$ therefore means \emph{slower} coordination before it means
 \emph{no} coordination, which a binary connected/disconnected flag cannot show.
 For that reason the script records, besides the collapse threshold, the $J/S$
@@ -161,9 +144,11 @@ the distance rule give identical adjacency matrices for every graph of the
 $J/S$ sweep.
 
 \paragraph{The jammer's choice of $\rho$.}
-Removing edges cannot increase $\lambda_2$: by \eqref{eq:qf}, fewer edges make
-$\bx\T L\bx$ smaller for every $\bx$, hence also its minimum over
-$\bx\perp\bone$. A smaller range removes edges, so the $\rho$ that minimises
+$\lambda_2$ is the minimum of $\bx\T L\bx/\bx\T\bx$ over $\bx\perp\bone$
+(the Rayleigh quotient of a symmetric matrix, restricted to the vectors
+orthogonal to the first eigenvector). Removing edges cannot increase it: by
+\eqref{eq:qf}, fewer edges make $\bx\T L\bx$ smaller for every $\bx$, hence
+also its minimum. A smaller range removes edges, so the $\rho$ that minimises
 $\lambda_2$ is the $\rho$ that minimises $r$. It is the same for every
 placement and every $N$, and the script computes it once per $J/S$ value
 (\texttt{worst\_rho()}). \texttt{VERIFICATION 4} checks the monotonicity
@@ -245,11 +230,8 @@ Eq.~\eqref{eq:rp} reproduces the simulated thresholds within 0.11\,dB
 contrast, is almost the same for all three sizes ($-17.2$ to $-17.4$\,dB).
 
 \paragraph{Limits of the model.}
-Both results rest on the hard outage threshold without coding. With a coded
-packet-error model $\rho_{\mathrm{out}}$ and the threshold values would change;
-with a jammer at a finite distance the received $J$ would differ between nodes
-and the graph would no longer be a plain random geometric graph. Both are
-listed as extensions in the README.
+Both results rest on the hard outage threshold without coding and on a distant
+jammer; the README lists these assumptions and what would change without them.
 
 \section{Correspondence with the code}
 \begin{center}

@@ -19,9 +19,8 @@
 \noindent\textbf{Purpose.}
 S0 is the calibration stage of the repository. S1 and S2 reuse its signal model
 ($r=s+n$, threshold at zero), so the simulator is first required to reproduce a
-result whose exact answer is known. This note derives that answer, maps every
-symbol to a line of the code, and derives the statistical test the script uses
-to decide whether simulation and theory agree. Mathematics used: Gaussian
+result whose exact answer is known. This note derives that answer and the
+statistical test the script uses to decide whether simulation and theory agree. Mathematics used: Gaussian
 random variables, conditional probability, the binomial estimator.
 
 \section{Signal model}
@@ -91,7 +90,7 @@ directly. The two are related by
 \]
 which is \texttt{ber\_bpsk\_theory()} in the script.
 
-\section{Correspondence with the code}
+\section{Where the model enters the code}
 
 The script fixes $E_b = 1$, so $N_0 = 1/(\EbNo)$ and $\sigma = \sqrt{N_0/2}$.
 
@@ -100,21 +99,16 @@ The script fixes $E_b = 1$, so $N_0 = 1/(\EbNo)$ and $\sigma = \sqrt{N_0/2}$.
 \toprule
 Mathematics & Line in \texttt{s0\_bpsk\_awgn\_ber.py} \\
 \midrule
-$\EbNo$ (linear) from dB & \texttt{ebn0\_lin = db\_to\_linear(ebn0\_db)} \\
 $\sigma = \sqrt{1/(2\,\EbNo)}$ & \texttt{sigma = np.sqrt(1.0 / (2.0 * ebn0\_lin))} \\
-$b\in\{0,1\}$ & \texttt{bits = rng.integers(0, 2, size=...)} \\
-$s = \pm 1$ & \texttt{symbols = 2 * bits - 1} \\
-$n\sim\mathcal N(0,\sigma^2)$ & \texttt{noise = rng.normal(0.0, scale=sigma, ...)} \\
-$r = s+n$ & \texttt{received = symbols + noise} \\
+$r = s+n$, $s=\pm1$ & \texttt{received = symbols + noise} \\
 $\hat b = [r>0]$ & \texttt{decisions = (received > 0).astype(int)} \\
-count $\hat b \ne b$ & \texttt{n\_errors += np.sum(decisions != bits)} \\
 Eq.~\eqref{eq:ber} & \texttt{0.5 * erfc(np.sqrt(ebn0\_linear))} \\
 $z$-score, Eq.~\eqref{eq:z} & \texttt{(n\_err - expected) / np.sqrt(expected)} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Note that \texttt{scale} in \texttt{rng.normal} is the standard deviation
+\texttt{scale} in \texttt{rng.normal} is the standard deviation
 $\sigma$, not the variance $\sigma^2$.
 
 \section{Accuracy of the Monte Carlo estimate and the pass criterion}
@@ -153,19 +147,11 @@ which is the expected scatter of ten standard normal draws. A modelling error
 is detected easily: $\sigma^2=N_0$ instead of $N_0/2$ gives $z>100$ at every
 point.
 
-\section{Shape of the curve}
+\section{Link to S1}
 
-For large $x$ the Gaussian tail satisfies
-\[
-  \Q(x) \approx \frac{1}{x\sqrt{2\pi}}\,e^{-x^2/2},
-\]
-so with $x^2 = 2\EbNo$ the BER falls like $e^{-\EbNo}$: exponentially in the
-\emph{linear} $\EbNo$. Plotted on a log-$y$ axis against linear $\EbNo$ the
-curve would be close to a straight line. Against $\EbNo$ in dB, as in
-\texttt{figures/s0\_ber\_curve.png}, equal steps on the $x$-axis are equal
-\emph{ratios} of $\EbNo$, so the curve bends downward more and more steeply
-(the ``waterfall'' shape). This exponential decay is the benchmark that
-partial-band jamming removes in S1, where the decay becomes only
-inverse-linear.
+For large $x$, $\Q(x) \approx e^{-x^2/2}/(x\sqrt{2\pi})$, so with
+$x^2 = 2\EbNo$ the BER falls like $e^{-\EbNo}$: exponentially in the linear
+$\EbNo$. This exponential decay is the benchmark that partial-band jamming
+removes in S1, where the decay becomes only inverse-linear.
 
 \end{document}
