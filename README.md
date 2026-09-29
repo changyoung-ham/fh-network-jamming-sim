@@ -1,5 +1,11 @@
 # Connectivity of a frequency-hopping network under partial-band jamming
 
+As a signal officer I operated multi-node frequency-hopping VHF radio nets.
+Hopping was our main protection against jamming, and when links began to fail
+we judged link by link, largely from experience, whether the net as a whole
+would hold. This project is my attempt to put numbers on that question: how
+much jamming a hopping network can absorb before it splits apart.
+
 Simulation study of how the connectivity of a multi-node frequency-hopping
 network degrades under partial-band jamming, measured by the algebraic
 connectivity [1] (second-smallest Laplacian eigenvalue, λ₂) of the link graph.
