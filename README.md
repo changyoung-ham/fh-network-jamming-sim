@@ -75,6 +75,7 @@ increase of N_CH (S2 note, Section 7).
 | S0 | BPSK over AWGN, Monte Carlo BER | Must match Q(√(2Eb/N0)); z-score of every point | **done** (max \|z\| = 2.2 over 10 points) |
 | S1 | FH + partial-band jammer, BER vs J/S, jamming margin | Monte Carlo vs closed-form mixture at 44 points; ρ=1 limit; optimiser vs analytical constants 0.709 / 0.0829 | **done** (max \|z\| = 1.9) |
 | S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [1]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
+| S3a | Detecting the jammer: energy test on known pilots per hop, count of flagged hops per window; hops needed vs ρ | Monte Carlo vs chi-square (12 points) and binomial (10 points); strong-jammer limit; count detector never beats the optimal pooled-energy test at ρ = 1 | **done** (4 checks pass) |
 
 ## Repository layout
 
@@ -83,7 +84,7 @@ src/        simulation scripts, one per stage
 theory/     derivation notes (LaTeX + PDF), one per stage — see theory/README.md
 figures/    generated figures (committed so results are viewable without running)
 results/    numeric results (CSV, TXT)
-warmup/     first NumPy/FFT exercise, not part of the S0–S2 chain
+warmup/     first NumPy/FFT exercise, not part of the S0–S3a chain
 environment.yml
 ```
 
@@ -93,8 +94,10 @@ Each stage has a short derivation note in [`theory/`](theory/README.md) that
 maps the code to the equations and states what each verification check tests:
 the BPSK/AWGN error probability and the z-score test (S0), the jammer's optimal
 band fraction, the inverse-linear worst-case BER law and the band fraction that
-causes an outage (S1), and the Laplacian eigenvalue theorems, the link-range
-argument and the closed-form threshold (S2).
+causes an outage (S1), the Laplacian eigenvalue theorems, the link-range
+argument and the closed-form threshold (S2), and the energy test on pilots, why
+it is the best test for one hop, and the number of hops a window detector needs
+(S3a).
 
 ## Reproducing the results
 
@@ -104,9 +107,10 @@ conda activate fh-jamming-sim
 python src/s0_bpsk_awgn_ber.py
 python src/s1_fh_partial_band_jamming.py
 python src/s2_network_lambda2.py
+python src/s3a_jammer_detection.py
 ```
 
-Run times on a laptop: S0 ~10 s, S1 ~1 min, S2 under 1 min.
+Run times on a laptop: S0 ~10 s, S1 ~1 min, S2 under 1 min, S3a ~1–2 min.
 All scripts use a fixed random seed, so the figures in `figures/` and the
 numbers in `results/` are reproduced exactly. Each script prints `PASS` or
 `FAIL` for its verification checks.
@@ -162,6 +166,35 @@ down, which is the rise on the left.
 
 ![example topologies](figures/s2_example_topologies.png)
 
+## S3a result — how many hops it takes to notice the jammer
+
+![hops needed vs rho](figures/s3a_hops_to_detect_vs_rho.png)
+
+S0–S2 treat the jammer as known. In S3a each hop carries 16 known pilot
+symbols; the receiver removes them and tests the energy of what is left, which
+is the most powerful test for a single hop (S3a note, Section 2; energy
+detection is classical [5]). It declares a jammer when at least k of M hops are
+flagged. M\* is the smallest window that reaches detection probability 0.9 at
+false-alarm probability 10⁻³.
+
+| J/S | M\* at the S1 worst-case ρ | M\* at ρ = 1 (optimal pooled-energy test) | smallest M\* over ρ |
+|---|---|---|---|
+| 0.46 dB (S1 outage point) | 242 (ρ = 0.0095) | 337 (212) | 92 (ρ ≈ 0.04) |
+| 12 dB | 16 (ρ = 0.135) | 4 (3) | 4 |
+
+- At the jammer's worst-case ρ, every jammed hop is detected almost surely, so
+  the delay is set only by how rarely a hop lands in the jammed band:
+  M\* ≈ ln 10 / ρ. More pilots do not shorten it (242 hops with 16 or 32
+  pilots, 261 with 8).
+- Against a full-band jammer of the same power each hop changes little, and
+  M\* falls roughly in proportion to the number of pilots (671 / 337 / 170 hops
+  for 8 / 16 / 32).
+- The count detector is not optimal when ρ < 1 (S3a note, Section 3), so these
+  M\* describe this detector, not the best possible one. Counts are in hops;
+  converting them to seconds needs a hop rate, which is not modelled.
+
+The per-hop ROC, with Monte Carlo points, is in `figures/s3a_roc_per_hop.png`.
+
 ## Parameters
 
 | Parameter | Value | Reason |
@@ -174,6 +207,8 @@ down, which is the rise on the left.
 | Path-loss exponent | 2 | line of sight. The spacing between the N curves is proportional to this exponent |
 | Area side L | 1 km | sets the scale only; results are also given as r/L |
 | Placements per N | 500 | 95 % interval of J/S\* within ±0.2 dB (bootstrap) |
+| Pilots per hop (S3a) | 16 | at the jammer's worst-case ρ a jammed hop is already detected almost surely: M\* is the same with 32 pilots and rises from 242 to 261 with 8 |
+| Window target (S3a) | P_d ≥ 0.9, P_fa ≤ 10⁻³ | assumed |
 
 ## Assumptions and limitations
 
@@ -182,8 +217,11 @@ down, which is the rise on the left.
   argument then gives a 1/(Eb/N_J) law with a different constant (S1 note,
   Section 3).
 - AWGN and free-space path loss; no fading, shadowing, or timing/phase error.
-- Jamming is a known input with a fixed band fraction; detection latency and
-  jammer classification are out of scope.
+- S0–S2 treat jamming as a known input with a fixed band fraction. S3a adds
+  detection, but assumes the receiver knows the thermal noise level and the
+  pilots (perfect channel knowledge), and uses a count detector that is not
+  optimal for ρ < 1. Telling jamming apart from fading or hop collisions is not
+  modelled.
 - The jammer is far from all nodes (equal received J everywhere) and does not
   know the hopping pattern. A jammer at a finite distance would make J differ
   between nodes; the graph would then no longer be a plain random geometric graph.
@@ -202,7 +240,10 @@ down, which is the rise on the left.
 Each item removes one of the assumptions above.
 
 - Channel re-allocation after the jammed band is detected, and how much of λ₂
-  it recovers, with the detection delay as a parameter.
+  it recovers, with the S3a detection delay as a parameter.
+- Telling jamming apart from fading and from hop collisions, with the S3a
+  energy test as the baseline.
+- An unknown or drifting thermal noise level at the receiver.
 - A jammer at a finite distance, so that the received J differs between nodes.
 - Noncoherent FSK and a coded packet-error criterion instead of a hard BER
   threshold.
@@ -215,6 +256,7 @@ Each item removes one of the assumptions above.
 2. R. Olfati-Saber, J. A. Fax, R. M. Murray, "Consensus and cooperation in networked multi-agent systems," *Proceedings of the IEEE*, vol. 95, no. 1, pp. 215–233, Jan. 2007.
 3. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12 (Spread-Spectrum Techniques).
 4. M. Penrose, *Random Geometric Graphs*, Oxford University Press, 2003.
+5. H. Urkowitz, "Energy detection of unknown deterministic signals," *Proceedings of the IEEE*, vol. 55, no. 4, pp. 523–531, Apr. 1967.
 
 ## Author
 
