@@ -1,0 +1,188 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black}
+\newcommand{\EbNo}{E_b/N_0}
+\newcommand{\EbNJ}{E_b/N_J}
+\newcommand{\Pfa}{P_{\mathrm{fa}}}
+\newcommand{\Pd}{P_{\mathrm{d}}}
+\setlength{\parskip}{4pt}
+
+\title{Theory note S3a --- Noticing a partial-band jammer:\\
+an energy test on pilots and the number of hops it needs}
+\author{Chang Young Ham}
+\date{September 2026 \quad (accompanies \texttt{src/s3a\_jammer\_detection.py})}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Purpose.}
+S0--S2 treat the jammer as a known input. S3a asks how many hops a receiver
+must observe before it can say that a partial-band jammer is present. The
+detector is a classical energy test, so every performance number has a closed
+form against which the simulator is checked.
+Mathematics used: Gaussian likelihoods, the Neyman--Pearson lemma, chi-square
+and binomial distributions.
+
+\section{The per-hop statistic}
+
+Each hop carries $n$ known BPSK pilot symbols with amplitude $\sqrt{E_b}=1$,
+received as $r_i = s_i + w_i$ exactly as in S0. The receiver subtracts the known
+pilots, which leaves noise only. As in S1, a hop lands in the jammed part of the
+band with probability $\rho$; there the noise density is $N_0 + N_J/\rho$
+instead of $N_0$. With $\sigma^2 = N_0/2$ the per-hop statistic is
+\begin{equation}
+T = \frac{1}{\sigma^2}\sum_{i=1}^{n}(r_i - s_i)^2,\qquad
+\text{unjammed: } T\sim\chi^2_n,\qquad
+\text{jammed: } T/a\sim\chi^2_n,
+\label{eq:T}
+\end{equation}
+\begin{equation}
+a = 1 + \frac{N_J/N_0}{\rho},\qquad
+\frac{N_J}{N_0} = \frac{\EbNo}{\EbNJ},\qquad
+\EbNJ\,[\mathrm{dB}] = G_p - J/S\,[\mathrm{dB}],
+\label{eq:a}
+\end{equation}
+where the last two relations are the S1 link budget. The noise ratio $a$ is the
+only quantity through which $J/S$ and $\rho$ enter S3a. Energy statistics of
+this kind are the classical energy detector: with noise only, the sum of squared
+Gaussian samples follows a central chi-square distribution \cite{urkowitz}.
+Here both hypotheses are central chi-square with different scales, because the
+jammer is modelled as noise.
+
+At the S1 outage point ($J/S = 0.46$\,dB) the noise ratio is $a = 12.7$ for the
+jammer's worst-case $\rho = 0.0095$, $a = 2.11$ for $\rho = 0.1$ and
+$a = 1.11$ for $\rho = 1$. A jammer that concentrates its power makes each
+jammed hop obvious, but few hops are jammed.
+
+\section{Why the energy test is optimal for one hop}
+
+For the $n$ independent residual samples $x_i = r_i - s_i$, the likelihood ratio of ``jammed'' ($N(0,a\sigma^2)$)
+to ``unjammed'' ($N(0,\sigma^2)$) is
+\begin{equation}
+\Lambda(T) = \prod_{i=1}^{n}
+\frac{(2\pi a\sigma^2)^{-1/2}\,e^{-x_i^2/(2a\sigma^2)}}{(2\pi\sigma^2)^{-1/2}\,e^{-x_i^2/(2\sigma^2)}}
+= a^{-n/2}\exp\!\Big(\frac{T}{2}\big(1-\tfrac{1}{a}\big)\Big).
+\label{eq:lr}
+\end{equation}
+For $a>1$ it increases with $T$, so ``$\Lambda > \eta$'' is the same test as
+``$T>\gamma$''. By the Neyman--Pearson lemma this test has the largest detection
+probability of all tests with the same false-alarm probability, whatever the
+value of $a$. Its performance follows from Eq.~\eqref{eq:T}:
+\begin{equation}
+\Pfa = P(\chi^2_n > \gamma),\qquad \Pd = P(\chi^2_n > \gamma/a).
+\label{eq:roc}
+\end{equation}
+The receiver is assumed to know $N_0$ (a calibrated noise floor) and the pilots
+(perfect channel knowledge, as for coherent BPSK in S0). If the pilots were not
+subtracted, the signal energy would enter $T$ and Eq.~\eqref{eq:lr} would no longer
+reduce to an energy comparison.
+
+\section{A window of $M$ hops: the count detector}
+
+The receiver flags each hop with $T>\gamma$ and declares ``jammer present'' when
+at least $k$ of $M$ hops are flagged. Hops are independent, so the count is
+binomial:
+\begin{equation}
+\text{no jammer: } \mathrm{Bin}(M,\Pfa),\qquad
+\text{jammer: } \mathrm{Bin}(M,p_1),\quad p_1 = \rho\,\Pd + (1-\rho)\,\Pfa .
+\label{eq:bin}
+\end{equation}
+For a given $M$ and $\gamma$, $k$ is the smallest count that keeps the window
+false-alarm probability at or below $10^{-3}$. $M^\ast$ is the smallest $M$ whose
+window detection probability reaches $0.9$, taking the best per-hop threshold
+from a grid of 70 values of $\Pfa$ between $10^{-9}$ and $0.5$. Both targets are
+assumed values.
+
+The count detector is simple but not optimal when $\rho<1$: the optimal window
+test would add up the per-hop mixture log-likelihood ratios
+$\sum_j \ln\big(1-\rho+\rho\,\Lambda(T_j)\big)$, which requires knowing $\rho$ and
+$a$. $M^\ast$ is therefore what \emph{this} detector needs; an optimal detector
+needs at most as many hops.
+
+\section{Two limits used as checks}
+
+\textbf{Strong jammer (verification 3).} If every jammed hop is flagged
+($\Pd\to1$) and false alarms are negligible ($\Pfa\to0$, so $k=1$), the window
+only has to contain one jammed hop:
+\begin{equation}
+1-(1-\rho)^{M} \ge 0.9 \quad\Longleftrightarrow\quad
+M \ge \frac{\ln 0.1}{\ln(1-\rho)} \approx \frac{2.30}{\rho}.
+\label{eq:limit}
+\end{equation}
+At $J/S = 30$\,dB the computed $M^\ast$ must be within one hop of the ceiling of
+this bound. It can be one hop \emph{below} it because the allowed false alarms
+($\Pfa \lesssim 10^{-3}/M$ per hop) add slightly to $p_1$.
+
+\textbf{Full-band jammer (verification 4).} At $\rho=1$ every hop is jammed and
+all $Mn$ residual samples are i.i.d.; the likelihood ratio of the whole window has
+the form of Eq.~\eqref{eq:lr} with the pooled energy
+$\sum_j T_j\sim\chi^2_{Mn}$ (scaled by $a$ when jammed). The pooled-energy test is
+therefore optimal there, and by the Neyman--Pearson lemma the count detector,
+whose false-alarm probability is at most the same $10^{-3}$, cannot have a higher
+detection probability at any $M$. A violation would mean an error in
+Eq.~\eqref{eq:roc} or \eqref{eq:bin}.
+
+\section{Monte Carlo checks and the $z$-score}
+
+Verification 1 generates pilots, adds noise, subtracts the pilots and compares
+the observed $\Pfa$ and $\Pd$ with Eq.~\eqref{eq:roc}. Verification 2 simulates
+whole windows and compares $P(\text{count}\ge k)$ with Eq.~\eqref{eq:bin}, with
+and without the jammer. Each point is tested by
+\begin{equation}
+z = \frac{K - Np}{\sqrt{Np(1-p)}},
+\end{equation}
+where $K$ is the number of events in $N$ trials. S0 used $\sqrt{Np}$ in the
+denominator, the small-$p$ form; here $p$ can be close to 1, so the full binomial
+variance is needed. The pass criterion is $|z|<4$ at every point, as in S0 and S1.
+
+\section{What the numbers show}
+
+With $n=16$ pilots (\texttt{results/s3a\_summary.txt}):
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item At the S1 outage point and the jammer's worst-case $\rho = 0.0095$, per-hop
+detection is almost certain ($a=12.7$), so $M^\ast = 242$ equals the
+strong-jammer bound~\eqref{eq:limit}: the delay is set by how rarely a hop lands
+in the jammed band. More pilots do not help ($M^\ast = 242$ for $n=16$ and $32$,
+261 for $n=8$). If the jammer must occupy at least one channel ($\rho = 0.01$),
+$M^\ast = 230$.
+\item At the same $J/S$ with $\rho=1$, each hop is only weakly affected
+($a=1.11$). The count detector needs 337 hops and the optimal pooled-energy test
+212; here more pilots help roughly in proportion (671, 337, 170 hops for
+$n = 8, 16, 32$).
+\item Between the two, the count detector needs the fewest hops (92 on the grid,
+near $\rho\approx0.04$). This is an observation about this detector only
+(Section~3), not a statement about the best possible detector.
+\item At $J/S = 12$\,dB, the S1 worst-case $\rho = 0.135$ needs 16 hops, again the
+bound~\eqref{eq:limit}; at $\rho=1$ it needs 4 (pooled energy 3).
+\end{itemize}
+All $M^\ast$ are in hops, not seconds: converting them needs a hop rate, which
+belongs to a specific radio and is not modelled here.
+
+\section{Correspondence with the code}
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Mathematics & Code \\
+\midrule
+$a$, Eq.~\eqref{eq:a} & \texttt{noise\_ratio()} \\
+$T$, Eq.~\eqref{eq:T} & \texttt{simulate\_hop\_energy()} \\
+$\gamma$, $\Pd$ from $\Pfa$, Eq.~\eqref{eq:roc} & \texttt{hop\_detection()} \\
+smallest admissible $k$ & \texttt{count\_threshold()} \\
+$M^\ast$ over the threshold grid & \texttt{hops\_to\_detect()} \\
+pooled energy at $\rho=1$ & \texttt{pooled\_detection()}, \texttt{hops\_to\_detect\_pooled()} \\
+Eq.~\eqref{eq:limit} & \texttt{strong\_jammer\_limit()} \\
+S1 outage point and worst-case $\rho$ & imported from \texttt{s1\_fh\_partial\_band\_jamming.py} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{thebibliography}{9}
+\bibitem{urkowitz} H.~Urkowitz, ``Energy detection of unknown deterministic
+  signals,'' \emph{Proceedings of the IEEE}, vol.~55, no.~4, pp.~523--531, Apr.\ 1967.
+\end{thebibliography}
+
+\end{document}

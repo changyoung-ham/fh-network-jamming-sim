@@ -1,0 +1,14 @@
+Pilots per hop N_PILOT            : 16 (sensitivity [8, 16, 32])
+Window target                     : P_d >= 0.9, P_fa <= 0.001
+S1 outage J/S (worst-case rho)    : 0.46 dB, rho = 0.0095
+S1 worst-case rho at J/S = 12 dB  : 0.135
+
+M* = hops needed by the count detector (N_PILOT = 16 unless noted)
+  J/S =  0.46 dB: M* at S1 worst rho (0.0095) = 242 (limit 242; 230 at rho >= 1/N_CH), at rho = 1 = 337 (pooled-energy optimum 212), smallest M* on the grid = 92 at rho = 0.036
+  J/S = 12.00 dB: M* at S1 worst rho (0.1351) = 16 (limit 16; 16 at rho >= 1/N_CH), at rho = 1 = 4 (pooled-energy optimum 3), smallest M* on the grid = 4 at rho = 0.635
+
+Sensitivity to N_PILOT (M* at S1 worst rho / at rho = 0.1 / at rho = 1)
+  J/S =  0.46 dB: n=8: 261/445/671,  n=16: 242/170/337,  n=32: 242/69/170
+  J/S = 12.00 dB: n=8: 17/23/8,  n=16: 16/22/4,  n=32: 16/22/2
+
+Verification: 1 PASS, 2 PASS, 3 PASS, 4 PASS
