@@ -13,8 +13,7 @@
 \newcommand{\BERout}{\mathrm{BER}_{\mathrm{out}}}
 \setlength{\parskip}{4pt}
 
-\title{Theory note S2 --- The graph Laplacian, algebraic connectivity $\lambda_2$,\\
-and the link range under partial-band jamming}
+\title{S2: The graph Laplacian, $\lambda_2$ and the link range under jamming}
 \author{Chang Young Ham}
 \date{September 2026 \quad (accompanies \texttt{src/s2\_network\_lambda2.py})}
 
@@ -23,10 +22,10 @@ and the link range under partial-band jamming}
 
 \noindent\textbf{Purpose.}
 S2 summarises a whole network by one number, the algebraic connectivity
-$\lambda_2$ \cite{fiedler}. This note proves the fact the simulator relies
-on ($\lambda_2>0$ iff connected), states what each verification check tests, shows that in this model a link is
-up exactly when it is shorter than a \emph{link range}, and uses that to
-explain the two sweeps. Mathematics used: symmetric matrices,
+$\lambda_2$ \cite{fiedler}. This note recalls the fact the simulator relies
+on ($\lambda_2>0$ iff connected), shows that in this model a link is up
+exactly when it is shorter than a \emph{link range}, and uses that to explain
+the two sweeps. Mathematics used: symmetric matrices,
 eigenvalues, quadratic forms.
 
 \section{From links to a matrix}
@@ -67,53 +66,34 @@ From (b), $L$ is positive semidefinite, so all $\lambda_k\ge0$; and $L\bone=0$
 shows $0$ is attained with eigenvector $\bone$. Thus $\lambda_1=0$ carries no
 information about the graph, which is why the second eigenvalue is used.
 
-\section{Theorem: $\lambda_2>0$ if and only if the graph is connected}
+\section{$\lambda_2>0$ if and only if the graph is connected}
 
-\begin{theorem}
-The multiplicity of the eigenvalue $0$ of $L$ equals the number of connected
-components of the graph. In particular $\lambda_2>0 \iff$ the graph is connected.
-\end{theorem}
+This is a standard result \cite{fiedler}. In short: if $L\bx = 0$, then
+$\bx\T L\bx = 0$, so by \eqref{eq:qf} $x_i = x_j$ on every edge and $\bx$ is
+constant on each connected component. The null space of $L$ therefore has one
+dimension per component, and $\lambda_2 > 0$ exactly when there is one
+component.
 
-\begin{proof}
-Suppose $L\bx = 0$. Then $\bx\T L\bx = 0$, and by \eqref{eq:qf} every edge has
-$x_i = x_j$. Following edges, $\bx$ is constant on each connected component.
-Conversely, any vector constant on components is in the null space (each row
-of $L$ only mixes a node with its neighbours, which share its value). So the
-null space is spanned by the indicator vectors of the components, and its
-dimension is the number of components $c$. Hence $\lambda_1=\dots=\lambda_c=0$
-and $\lambda_{c+1}>0$; with $c=1$ this reads $\lambda_2>0$.
-\end{proof}
+\texttt{VERIFICATION 2} checks the implementation against this: for every graph
+evaluated during the sweeps (87{,}000 evaluations; many are repeats, because
+the same placements are thresholded at different ranges) it computes both
+$[\lambda_2>10^{-9}]$ and a breadth-first search and requires them to agree.
+The $10^{-9}$ tolerance absorbs round-off; $\lambda_2$ of a disconnected graph
+comes back as about $10^{-15}$.
 
-\texttt{VERIFICATION 2} is a test of the implementation, not of
-the theorem: for every graph evaluated during the sweeps (87{,}000 evaluations;
-many are repeats, because the same placements are thresholded at different
-ranges) it computes both $[\lambda_2>10^{-9}]$ and a breadth-first search, and
-requires them to agree. Zero mismatches means the adjacency construction, the
-Laplacian, and the eigen-solver are consistent with an independent algorithm.
-(The $10^{-9}$ tolerance absorbs floating-point round-off; $\lambda_2$ of a
-disconnected graph comes back as $\pm10^{-15}$, not exactly $0$.)
+\section{Two simple benchmarks}
 
-\section{Two exact benchmarks}
-
-\begin{proposition}[Complete graph]
-For $K_N$ (every pair linked), $\lambda_2 = N$.
-\end{proposition}
-\begin{proof}
-$A = \bone\bone\T - I$ and $D = (N-1)I$, so $L = NI - \bone\bone\T$. On the
-subspace $\bx\perp\bone$ we have $\bone\bone\T\bx = 0$, so $L\bx = N\bx$: the
-eigenvalue $N$ has multiplicity $N-1$. Together with $\lambda_1=0$ this is the
-whole spectrum, and $\lambda_2 = N$.
-\end{proof}
-\texttt{VERIFICATION 1} checks this for $N=10,20,30$. It catches a wrong sign
-convention for $L$ or a wrong eigenvalue index.
+For the complete graph $K_N$, $L = NI - \bone\bone\T$, so every vector
+orthogonal to $\bone$ is an eigenvector with eigenvalue $N$, and
+$\lambda_2 = N$. \texttt{VERIFICATION 1} checks this for $N=10,20,30$; it
+catches a wrong sign convention for $L$ or a wrong eigenvalue index.
 
 \paragraph{Degree bound.}
 Fiedler \cite[3.5]{fiedler} showed that $\lambda_2 \le \frac{N}{N-1}\,\delta_{\min}$,
 where $\delta_{\min}$ is the smallest node degree; $K_N$ attains it with
-equality. The bound is used here without proof, as a third consistency check on
-every graph (\texttt{VERIFICATION 3}).
+equality. \texttt{VERIFICATION 3} checks it on every graph.
 
-\section{Why $\lambda_2$ and not ``number of live links''}
+\section{What $\lambda_2$ adds to a count of live links}
 
 The number of live links does not say where they are: losing the few links
 that join two clusters splits the network, losing the same number elsewhere
@@ -164,10 +144,10 @@ the question answered in Section~4 of the S1 note:
 \]
 The exact search gives $0.0091$ at $J/S_{\mathrm{ref}}=-14$\,dB (thermal noise
 moves it slightly) and $\lambda_2$ is lowest at the nearest grid point,
-$0.0089$. This is an order of magnitude below the $0.135$ of the S1 figure, but
-for a simple reason: both are $\rho^\ast=0.709/(E_b/N_J)$, evaluated at
-$E_b/N_J=8$\,dB in the S1 figure and at the outage point $19.2$\,dB here. It is
-not a network effect, and it scales with the assumed criterion
+$0.0089$. This is an order of magnitude below the $0.135$ of the S1 figure
+because both are $\rho^\ast=0.709/(E_b/N_J)$, evaluated at $E_b/N_J=8$\,dB in
+the S1 figure and at the outage point $19.2$\,dB here. It scales with the
+assumed criterion
 ($\BERout=10^{-2}$ would give $\rho_{\mathrm{out}}=0.086$).
 The rise of $\lambda_2$ on the left of the figure has a separate cause: a
 jammed hop has a BER of at most $\tfrac12$, so $P_b\le\rho/2$ plus the thermal

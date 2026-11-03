@@ -8,8 +8,7 @@
 \newcommand{\Pd}{P_{\mathrm{d}}}
 \setlength{\parskip}{4pt}
 
-\title{Theory note S3b --- Jamming, a fade or a hop collision?\\
-what the pilot residual shows beyond its energy}
+\title{S3b: Jamming, a fade or a hop collision?}
 \author{Chang Young Ham}
 \date{November 2026 \quad (accompanies \texttt{src/s3b\_cause\_classification.py})}
 
@@ -20,7 +19,8 @@ what the pilot residual shows beyond its energy}
 The S3a energy test notices that a hop is disturbed but not why. S3b compares
 three causes that all raise the energy of the pilot residual, asks how well
 they can be told apart from the same $n = 16$ residual samples, and checks the
-classifiers against two bounds that follow from the model.
+classifiers against two bounds that follow from the model. It is an
+exploratory step: the data are synthetic and the classifiers are small.
 Mathematics used: Gaussian and chi-square distributions, the Neyman--Pearson
 lemma, logistic regression.
 
@@ -168,8 +168,8 @@ From \texttt{results/s3b\_summary.txt}:
   \item The receiver knows $\sigma^2$ and the pilots, as in S3a; all hops are
         independent; the collision is a single interferer with the same
         modulation and timing.
-  \item The three causes are compared at equal $D$, a choice made to remove
-        the mean energy as an explanation, not a property of real channels.
+  \item The three causes are compared at equal $D$ to remove the mean energy
+        as an explanation; real channels have no reason to do this.
 \end{itemize}
 
 \section{Correspondence with the code}

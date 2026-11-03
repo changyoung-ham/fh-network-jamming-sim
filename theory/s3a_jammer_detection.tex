@@ -10,8 +10,7 @@
 \newcommand{\Pd}{P_{\mathrm{d}}}
 \setlength{\parskip}{4pt}
 
-\title{Theory note S3a --- Noticing a partial-band jammer:\\
-an energy test on pilots and the number of hops it needs}
+\title{S3a: Detecting a partial-band jammer from pilot energy}
 \author{Chang Young Ham}
 \date{September 2026 \quad (accompanies \texttt{src/s3a\_jammer\_detection.py})}
 
@@ -153,13 +152,12 @@ $M^\ast = 230$.
 212; here more pilots help roughly in proportion (671, 337, 170 hops for
 $n = 8, 16, 32$).
 \item Between the two, the count detector needs the fewest hops (92 on the grid,
-near $\rho\approx0.04$). This is an observation about this detector only
-(Section~3), not a statement about the best possible detector.
+near $\rho\approx0.04$). This holds for this detector only (Section~3).
 \item At $J/S = 12$\,dB, the S1 worst-case $\rho = 0.135$ needs 16 hops, again the
 bound~\eqref{eq:limit}; at $\rho=1$ it needs 4 (pooled energy 3).
 \end{itemize}
-All $M^\ast$ are in hops, not seconds: converting them needs a hop rate, which
-belongs to a specific radio and is not modelled here.
+All $M^\ast$ are in hops; converting them to seconds needs a hop rate, which
+is not modelled here.
 
 \section{Correspondence with the code}
 

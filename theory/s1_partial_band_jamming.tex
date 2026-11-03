@@ -9,8 +9,7 @@
 \newcommand{\EbNJ}{E_b/N_J}
 \setlength{\parskip}{4pt}
 
-\title{Theory note S1 --- Frequency hopping under partial-band jamming:\\
-processing gain, the worst-case band fraction, and the jamming margin}
+\title{S1: Frequency hopping under partial-band jamming}
 \author{Chang Young Ham}
 \date{September 2026 \quad (accompanies \texttt{src/s1\_fh\_partial\_band\_jamming.py})}
 
@@ -25,8 +24,8 @@ $\rho^\ast$ and the resulting inverse-linear BER law, (iv) the band fraction
 that matters for a link \emph{outage}, which S2 builds on, and (v) the jamming
 margin numbers reported in \texttt{results/s1\_link\_budget.txt}.
 Partial-band and pulse noise jamming are standard textbook material
-\cite[Sec.~12.6]{sklar}; the worst-case analysis is derived here in full so
-that every number in the code can be traced to an equation.
+\cite[Sec.~12.6]{sklar}; the worst-case analysis is written out here because
+the code uses its constants.
 Mathematics used: total probability, one-variable optimisation.
 
 \section{Processing gain}
@@ -142,7 +141,7 @@ gives $\rho^\ast = 0.709/6.31 = 0.112$ with thermal noise ignored. Keeping the
 thermal term $N_0$ in \eqref{eq:mix} shifts the optimum upward; the search on
 the exact formula gives $\rho^\ast = 0.135$. The curve is flat near its maximum
 (the BER at $\rho=0.10$ and at $\rho=0.16$ is within 3\,\% of the peak), so the
-Monte Carlo points are used to confirm the \emph{curve}, not to locate the
+Monte Carlo points confirm the curve; they are too coarse to locate the
 maximum. The worst-case BER is
 $1.42\times10^{-2}$ versus $2.70\times10^{-3}$ for a full-band jammer of the same
 power, a factor of $5.2$.
@@ -150,8 +149,8 @@ power, a factor of $5.2$.
 \section{The band fraction that causes an outage}
 
 S2 declares a link \emph{down} when $P_b > \mathrm{BER}_{\mathrm{out}}$. The
-jammer then asks a different question: not ``which $\rho$ maximises the BER of
-this link'' but ``what is the strongest link I can still bring down''. By
+jammer then asks a different question: what is the strongest link it can
+still bring down? By
 Eq.~\eqref{eq:worst} the worst-case BER reaches $\mathrm{BER}_{\mathrm{out}}$ when
 \begin{equation}
   \left(\EbNJ\right)_{\mathrm{out}} = \frac{0.0829}{\mathrm{BER}_{\mathrm{out}}},
@@ -162,8 +161,8 @@ Eq.~\eqref{eq:worst} the worst-case BER reaches $\mathrm{BER}_{\mathrm{out}}$ wh
 \end{equation}
 For $\mathrm{BER}_{\mathrm{out}}=10^{-3}$: $(\EbNJ)_{\mathrm{out}} = 82.9 = 19.2$\,dB and
 $\rho_{\mathrm{out}} = 0.0086$. This is Eq.~\eqref{eq:rhostar} evaluated at the
-outage point, not a new optimisation; it is much smaller than the $0.135$ of
-the figure only because $19.2$\,dB is a much larger $\EbNJ$ than $8$\,dB.
+outage point; it is much smaller than the $0.135$ of the figure because
+$19.2$\,dB is a much larger $\EbNJ$ than $8$\,dB.
 
 \paragraph{One-channel limit.}
 A jammer facing $N_{\mathrm{ch}}$ channels cannot jam less than one of them, so
