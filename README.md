@@ -211,8 +211,8 @@ with another node's BPSK signal. The three disturbances get the same mean
 residual energy, set by a disturbance-to-noise ratio D; a faded and a collided
 hop even have exactly the same energy distribution. Three classifiers are
 trained on 20,000 hops per class and tested on another 20,000: logistic
-regression on the energy, logistic regression on the energy, the correlation
-with the pilots and the kurtosis, and a small neural network (MLP) on the
+regression on the energy; logistic regression on the energy, the correlation
+with the pilots and the kurtosis; and a small neural network (MLP) on the
 sorted pilot residuals [6].
 
 | D | energy only (best possible from energy) | three features | small MLP |
