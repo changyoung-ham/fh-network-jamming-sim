@@ -55,8 +55,6 @@ figures/s1_ber_vs_js.png        BER vs J/S for several rho, plus worst-case enve
 figures/s1_ber_vs_rho.png       BER vs rho at fixed J/S (shows the worst-case rho)
 results/s1_ber_vs_js.csv
 results/s1_link_budget.txt
-
-Parameters are assumed values chosen for the study (see README).
 """
 
 import csv
@@ -67,9 +65,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import brentq, minimize_scalar
 from scipy.special import erfc
 
-# ---------------------------------------------------------------------------
 # Parameters (assumed values)
-# ---------------------------------------------------------------------------
 SEED = 2026
 N_CH = 100                 # hop channels -> processing gain 20 dB; also sets the smallest rho = 1/N_CH
 EBN0_DB = 10.0             # thermal Eb/N0 [dB]: thermal-only BER = 3.9e-6 << outage BER,
@@ -93,9 +89,7 @@ FIG_DIR.mkdir(exist_ok=True)
 RES_DIR.mkdir(exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 def db_to_linear(x_db):
     return 10.0 ** (np.asarray(x_db, dtype=float) / 10.0)
 
@@ -185,15 +179,13 @@ def simulate_partial_band(ebn0_lin, ebnj_lin, rho, rng):
     return n_err / n_bits, n_bits, n_err
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 def main():
     rng = np.random.default_rng(SEED)
     gp_db = linear_to_db(N_CH)
     ebn0_lin = db_to_linear(EBN0_DB)
 
-    # --- Link budget numbers -------------------------------------------------
+    # Link budget numbers
     req_full = required_ebnj_db(ebn0_lin, BER_REQUIRED, full_band=True)
     req_cont = required_ebnj_db(ebn0_lin, BER_REQUIRED, rho_min=1e-5)
     req_phys = required_ebnj_db(ebn0_lin, BER_REQUIRED, rho_min=RHO_MIN_PHYSICAL)
@@ -222,7 +214,7 @@ def main():
     print("\n".join(budget))
     (RES_DIR / "s1_link_budget.txt").write_text("\n".join(budget) + "\n")
 
-    # --- Sweep 1: BER vs J/S for several rho (Monte Carlo vs theory) --------
+    # Sweep 1: BER vs J/S for several rho (Monte Carlo vs theory)
     print(f"\n{'J/S[dB]':>7} {'rho':>5} {'BER_sim':>10} {'BER_theory':>11} {'ratio':>6} {'errors':>7} {'z':>6}")
     rows = []
     z_all = []
@@ -265,7 +257,7 @@ def main():
         w.writerow(["js_db", "rho", "ber_sim", "ber_theory", "ratio", "n_bits", "n_errors", "z_score"])
         w.writerows(rows)
 
-    # --- Sweep 2: BER vs rho at fixed J/S; worst-case rho ------------------
+    # Sweep 2: BER vs rho at fixed J/S; worst-case rho
     ebnj_lin = db_to_linear(gp_db - JS_FOR_RHO_PLOT_DB)
     rho_star, ber_star = worst_case_rho(ebn0_lin, ebnj_lin)
     ber_full = ber_partial_band_theory(ebn0_lin, ebnj_lin, 1.0)
@@ -280,7 +272,7 @@ def main():
 
     print("\nOVERALL:", "PASS" if (ok1 and ok2 and ok3) else "FAIL")
 
-    # --- Figure 1: BER vs J/S --------------------------------------------------
+    # Figure 1: BER vs J/S
     js_fine = np.linspace(JS_DB[0], JS_DB[-1], 200)
     envelope = np.array([worst_case_rho(ebn0_lin, db_to_linear(gp_db - js))[1] for js in js_fine])
     plt.figure(figsize=(7.5, 5))
@@ -300,7 +292,7 @@ def main():
     plt.savefig(FIG_DIR / "s1_ber_vs_js.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- Figure 2: BER vs rho --------------------------------------------------
+    # Figure 2: BER vs rho
     plt.figure(figsize=(7, 4.5))
     plt.semilogy(rho_curve, ber_curve, "-", label="closed form (rho >= 1/N_CH)")
     plt.semilogy(rho_sim_pts, ber_rho_sim, "o", label="Monte Carlo")

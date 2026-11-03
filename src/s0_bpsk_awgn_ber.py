@@ -29,12 +29,6 @@ Outputs
 figures/s0_ber_curve.png       Monte Carlo BER vs. theory (log y-axis)
 figures/s0_received_hist.png   histogram of received samples at two Eb/N0 values
 results/s0_ber_results.csv     numeric results used for the plot
-
-Reproducibility
----------------
-All randomness comes from a single numpy Generator with a fixed seed.
-
-Parameters are assumed values chosen for the study (see README).
 """
 
 import csv
@@ -44,10 +38,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import erfc
 
-# ---------------------------------------------------------------------------
 # Parameters
-# ---------------------------------------------------------------------------
-SEED = 2026                       # fixed seed for reproducibility
+SEED = 2026
 EBN0_DB = np.arange(0, 10, 1.0)   # Eb/N0 sweep [dB]; 0..9 dB in 1 dB steps
 
 BITS_PER_CHUNK = 1_000_000        # bits simulated per chunk
@@ -63,9 +55,7 @@ FIG_DIR.mkdir(exist_ok=True)
 RES_DIR.mkdir(exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
 # Helper functions
-# ---------------------------------------------------------------------------
 def db_to_linear(value_db):
     """Convert a power ratio in dB to a linear ratio (10*log10 convention)."""
     return 10.0 ** (value_db / 10.0)
@@ -103,20 +93,18 @@ def simulate_ber_point(ebn0_db, rng):
     n_bits = 0
     n_errors = 0
     while n_errors < MIN_ERRORS and n_bits < MAX_BITS:
-        bits = rng.integers(0, 2, size=BITS_PER_CHUNK)          # 0/1 with equal probability
-        symbols = 2 * bits - 1                                    # map 0 -> -1, 1 -> +1
+        bits = rng.integers(0, 2, size=BITS_PER_CHUNK)
+        symbols = 2 * bits - 1          # map 0 -> -1, 1 -> +1
         noise = rng.normal(loc=0.0, scale=sigma, size=BITS_PER_CHUNK)
-        received = symbols + noise                                # r = s + n
-        decisions = (received > 0).astype(int)                    # threshold at 0
-        n_errors += int(np.sum(decisions != bits))                # count mismatches
+        received = symbols + noise
+        decisions = (received > 0).astype(int)
+        n_errors += int(np.sum(decisions != bits))
         n_bits += BITS_PER_CHUNK
 
     return n_errors / n_bits, n_bits, n_errors
 
 
-# ---------------------------------------------------------------------------
 # Main: sweep Eb/N0, compare with theory, save results and figures
-# ---------------------------------------------------------------------------
 def main():
     rng = np.random.default_rng(SEED)
 
@@ -135,12 +123,8 @@ def main():
         rows.append((ebn0_db, ber, ber_theory[i], ratio, n_bits, n_err, z_scores[i]))
         print(f"{ebn0_db:9.1f} {ber:12.3e} {ber_theory[i]:12.3e} {ratio:7.3f} {n_bits:10d} {n_err:7d} {z_scores[i]:6.2f}")
 
-    # -----------------------------------------------------------------------
     # Verification: every point within Z_LIMIT standard deviations of theory.
-    # The number of errors differs a lot between points (about 80,000 at 0 dB,
-    # about 200 at 9 dB), so a fixed band on the ratio would be far too loose
-    # at low Eb/N0. The z-score scales the tolerance to each point.
-    # -----------------------------------------------------------------------
+    # The z-score scales the tolerance to the number of errors at each point.
     ok = bool(np.all(np.abs(z_scores) < Z_LIMIT))
     ratios = ber_sim / ber_theory
     print("\nVERIFICATION:", "PASS" if ok else "FAIL",
@@ -153,9 +137,7 @@ def main():
         w.writerow(["ebn0_db", "ber_sim", "ber_theory", "ratio", "n_bits", "n_errors", "z_score"])
         w.writerows(rows)
 
-    # -----------------------------------------------------------------------
-    # Figure 1: BER curve, simulation vs theory
-    # -----------------------------------------------------------------------
+    # Figure 1: BER curve
     plt.figure(figsize=(7, 4.5))
     plt.semilogy(EBN0_DB, ber_theory, "k-", label="Theory: Q(sqrt(2 Eb/N0))")
     plt.semilogy(EBN0_DB, ber_sim, "o", label="Monte Carlo simulation")
@@ -167,10 +149,7 @@ def main():
     plt.savefig(FIG_DIR / "s0_ber_curve.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # -----------------------------------------------------------------------
-    # Figure 2: histogram of received samples r = s + n for two Eb/N0 values.
-    # Errors are the parts of each bell that cross the decision threshold r=0.
-    # -----------------------------------------------------------------------
+    # Figure 2: received samples r = s + n at two Eb/N0 values
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
     for ax, ebn0_db in zip(axes, (0.0, 6.0)):
         sigma = np.sqrt(1.0 / (2.0 * db_to_linear(ebn0_db)))

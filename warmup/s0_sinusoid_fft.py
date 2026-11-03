@@ -2,24 +2,14 @@
 Warm-up - Sinusoid in white Gaussian noise: time domain and spectrum
 ====================================================================
 
-A first NumPy exercise written before S0. It is not part of the S0-S2 model
-chain (none of the later stages uses an FFT). It is kept because it fixes
-three conventions the later scripts rely on: a seeded random generator,
-`scale` = standard deviation in rng.normal, and additive noise r = s + n.
+A first NumPy exercise written before S0, not part of the stage scripts
+(none of them uses an FFT). It is kept because the later scripts use the same
+conventions: a seeded generator, `scale` = standard deviation in rng.normal,
+and additive noise r = s + n.
 
-Three numbers are checked against theory:
-
-    peak frequency   == F0
-    peak magnitude   ~= A                        (after the 2/N normalisation)
-    noise floor      ~= sqrt(pi) * SIGMA / sqrt(N)
-
-Noise floor: for white Gaussian noise each FFT bin is complex Gaussian with
-total variance N*SIGMA^2, so its magnitude is Rayleigh distributed with mean
-(sqrt(pi)/2) * sqrt(N) * SIGMA. After the 2/N normalisation the MEAN bin
-magnitude is sqrt(pi) * SIGMA / sqrt(N) = 1.772 * SIGMA / sqrt(N).
-The check uses the mean of the noise-only bins (DC, the F0 bin and the
-Nyquist bin are excluded). The median would be about 6 % lower
-(Rayleigh median / mean = 0.939), so it must not be compared with this formula.
+Checked against theory: the peak frequency, the peak magnitude (A after the
+2/N normalisation) and the mean noise-floor magnitude, sqrt(pi) * SIGMA /
+sqrt(N), which is the mean of a Rayleigh-distributed bin magnitude.
 
 Outputs (written next to this script)
 -------
@@ -32,9 +22,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ---------------------------------------------------------------------------
 # Parameters (assumed values)
-# ---------------------------------------------------------------------------
 FS = 1000.0     # sampling rate [Hz]; FS > 2*F0 (Nyquist)
 N = 1000        # number of samples; duration N/FS = 1 s, resolution FS/N = 1 Hz
 F0 = 50.0       # sinusoid frequency [Hz]; integer multiple of FS/N to avoid leakage
@@ -61,7 +49,7 @@ def main():
     # divide by N (FFT sums N samples) and multiply by 2 (rfft keeps only +F0).
     magnitude = np.abs(spectrum) * 2 / N
 
-    # --- numerical verification -------------------------------------------
+    # numerical verification
     k = int(np.argmax(magnitude))
     noise_bins = np.ones(len(magnitude), dtype=bool)
     noise_bins[[0, k, len(magnitude) - 1]] = False      # drop DC, signal bin, Nyquist
@@ -79,7 +67,7 @@ def main():
     print(f"noise floor (mean)  : {floor_meas:.4f}  expected ~{floor_theory:.4f} -> {'PASS' if ok_floor else 'FAIL'}")
     print("OVERALL:", "PASS" if (ok_freq and ok_peak and ok_floor) else "FAIL")
 
-    # --- figure 1: time domain ------------------------------------------------
+    # figure 1: time domain
     plt.figure(figsize=(9, 3))
     plt.plot(t[:200], clean[:200], label="clean")
     plt.plot(t[:200], noisy[:200], label="clean + noise", alpha=0.7)
@@ -91,7 +79,7 @@ def main():
     plt.savefig(OUT_DIR / "s0_sinusoid_time.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- figure 2: spectrum --------------------------------------------------
+    # figure 2: spectrum
     plt.figure(figsize=(9, 4))
     plt.plot(freqs, magnitude)
     plt.axhline(floor_theory, color="k", linestyle=":", label="theoretical mean noise floor")

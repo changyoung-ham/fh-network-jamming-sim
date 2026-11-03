@@ -70,8 +70,6 @@ figures/s3a_hops_to_detect_vs_rho.png   M* vs rho at two J/S values
 results/s3a_hops_to_detect.csv       M* for every (N_PILOT, J/S, rho)
 results/s3a_monte_carlo_checks.csv   every Monte Carlo point of checks 1-2
 results/s3a_summary.txt
-
-Parameters are assumed values chosen for the study (see README).
 """
 
 import csv
@@ -88,9 +86,7 @@ from s1_fh_partial_band_jamming import (
     worst_case_rho, required_ebnj_db,
 )
 
-# ---------------------------------------------------------------------------
 # Parameters (assumed values)
-# ---------------------------------------------------------------------------
 SEED = 2026
 N_PILOT = 16                      # pilot symbols per hop (main results); sensitivity below
 N_PILOT_SENSITIVITY = [8, 16, 32]
@@ -116,9 +112,7 @@ FIG_DIR.mkdir(exist_ok=True)
 RES_DIR.mkdir(exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
 # Closed-form detection probabilities
-# ---------------------------------------------------------------------------
 def noise_ratio(js_db, rho):
     """a = (noise variance in a jammed hop) / (thermal noise variance) = 1 + (N_J/N0)/rho."""
     gp_db = linear_to_db(N_CH)
@@ -186,9 +180,7 @@ def strong_jammer_limit(rho):
     return int(np.ceil(np.log(1.0 - PD_WINDOW) / np.log(1.0 - rho)))
 
 
-# ---------------------------------------------------------------------------
 # Monte Carlo
-# ---------------------------------------------------------------------------
 def simulate_hop_energy(num_hops, a, n, rng):
     """T for num_hops hops: send pilots, add noise, subtract the known pilots.
 
@@ -219,15 +211,13 @@ def z_binomial(events, trials, p):
     return (events - trials * p) / np.sqrt(trials * p * (1.0 - p))
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 def main():
     rng = np.random.default_rng(SEED)
     gp_db = linear_to_db(N_CH)
     ebn0_lin = db_to_linear(EBN0_DB)
 
-    # --- Operating points taken from S1 --------------------------------------
+    # Operating points taken from S1
     req_ebnj_db = required_ebnj_db(ebn0_lin, BER_REQUIRED, rho_min=1e-5)
     js_outage_db = gp_db - req_ebnj_db                       # worst-case link just reaches outage
     rho_worst = {
@@ -240,7 +230,7 @@ def main():
 
     mc_rows = []
 
-    # --- Verification 1: per-hop P_fa and P_d --------------------------------
+    # Verification 1: per-hop P_fa and P_d
     roc_cases = [(js_outage_db, rho_worst[js_outage_db]), (js_outage_db, 0.1), (js_outage_db, 1.0)]
     t_h0 = simulate_hop_energy(N_HOPS_MC, 1.0, N_PILOT, rng)
     z1 = []
@@ -271,7 +261,7 @@ def main():
     print(f"VERIFICATION 1 (per-hop Monte Carlo vs chi-square): {'PASS' if ok1 else 'FAIL'} "
           f"(max |z| = {np.abs(z1).max():.2f} over {len(z1)} points)")
 
-    # --- Verification 2: window counts ----------------------------------------
+    # Verification 2: window counts
     window_cases = [  # (J/S, rho, M, per-hop P_fa, k values tested)
         (js_outage_db, 0.10, 50, 0.05, [3, 5, 7]),
         (JS_HIGH_DB, 0.05, 20, 0.01, [1, 2]),
@@ -298,7 +288,7 @@ def main():
     print(f"VERIFICATION 2 (window Monte Carlo vs binomial): {'PASS' if ok2 else 'FAIL'} "
           f"(max |z| = {np.abs(z2).max():.2f} over {len(z2)} points)")
 
-    # --- Main sweep: M* vs rho -------------------------------------------------
+    # Main sweep: M* vs rho
     sweep_rows = []
     m_star = {}
     for n in N_PILOT_SENSITIVITY:
@@ -311,7 +301,7 @@ def main():
                 sweep_rows.append((n, round(js_db, 2), rho, a, m, pfa_hop, pd_hop, k))
             m_star[(n, js_db)] = np.array(values)
 
-    # --- Verification 3: strong-jammer limit -----------------------------------
+    # Verification 3: strong-jammer limit
     m_strong = np.array([hops_to_detect(noise_ratio(JS_STRONG_DB, r), r, N_PILOT)[0] for r in RHO_GRID])
     m_limit = np.array([strong_jammer_limit(r) for r in RHO_GRID])
     diff3 = m_strong - m_limit
@@ -320,7 +310,7 @@ def main():
           f"(M* - limit ranges {diff3.min()} .. {diff3.max()} hops over {len(RHO_GRID)} rho values; "
           f"{int(np.sum(diff3 == 0))} exact)")
 
-    # --- Verification 4: Neyman-Pearson at rho = 1 ------------------------------
+    # Verification 4: Neyman-Pearson at rho = 1
     violations = 0
     checked = 0
     pooled_m = {}
@@ -342,7 +332,7 @@ def main():
     ok = ok1 and ok2 and ok3 and ok4
     print("\nOVERALL:", "PASS" if ok else "FAIL")
 
-    # --- Summary -----------------------------------------------------------------
+    # Summary
     lines = [
         f"Pilots per hop N_PILOT            : {N_PILOT} (sensitivity {N_PILOT_SENSITIVITY})",
         f"Window target                     : P_d >= {PD_WINDOW}, P_fa <= {PFA_WINDOW:g}",
@@ -387,7 +377,7 @@ def main():
                     "p_theory", "trials", "events", "z_score"])
         w.writerows(mc_rows)
 
-    # --- Figure 1: per-hop ROC ------------------------------------------------------
+    # Figure 1: per-hop ROC
     pfa_curve = np.logspace(-6, 0, 300)
     plt.figure(figsize=(7, 4.8))
     for (js_db, rho), pd_mc in zip(roc_cases, roc_mc):
@@ -406,7 +396,7 @@ def main():
     plt.savefig(FIG_DIR / "s3a_roc_per_hop.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- Figure 2: hops needed vs rho -----------------------------------------------
+    # Figure 2: hops needed vs rho
     plt.figure(figsize=(7.5, 5))
     plt.axvspan(RHO_GRID[0], 1.0 / N_CH, color="0.9", label="rho < 1/N_CH (not realisable)")
     for js_db in js_study:

@@ -11,7 +11,7 @@ outage criterion. The resulting graph is summarised by the algebraic
 connectivity lambda_2 (second-smallest eigenvalue of the Laplacian L = D - A):
 
     lambda_2 = 0   <=>  the graph is disconnected
-    lambda_2 large  ->  robust connectivity, fast consensus
+    lambda_2 large  ->  harder to disconnect, faster consensus
 
 Two questions are answered numerically:
     (a) For a given jammer power, which band fraction rho hurts the network most?
@@ -64,8 +64,6 @@ figures/s2_lambda2_vs_rho.png       (a) lambda_2 vs rho, N = 10/20/30
 figures/s2_lambda2_vs_js.png        (b) lambda_2 vs J/S under worst-case rho, threshold J/S*
 figures/s2_example_topologies.png   one placement at three jamming levels
 results/s2_lambda2_vs_rho.csv, results/s2_lambda2_vs_js.csv, results/s2_summary.txt
-
-Parameters are assumed values chosen for the study (see README).
 """
 
 import csv
@@ -76,9 +74,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import brentq, minimize_scalar
 from scipy.special import erfc
 
-# ---------------------------------------------------------------------------
 # Parameters (assumed values)
-# ---------------------------------------------------------------------------
 SEED = 2026
 N_LIST = [10, 20, 30]           # network sizes to compare
 M_PLACEMENTS = 500              # random placements per N (standard error of a fraction near 0.5: 0.022)
@@ -106,9 +102,7 @@ RES_DIR.mkdir(exist_ok=True)
 GP_DB = 10.0 * np.log10(N_CH)
 
 
-# ---------------------------------------------------------------------------
 # Link model (from S1)
-# ---------------------------------------------------------------------------
 def db_to_linear(x_db):
     return 10.0 ** (np.asarray(x_db, dtype=float) / 10.0)
 
@@ -167,9 +161,7 @@ def js_ref_closed_form(r):
             - 10.0 * PATH_LOSS_EXP * np.log10(r / D_REF))
 
 
-# ---------------------------------------------------------------------------
 # Graph model
-# ---------------------------------------------------------------------------
 def place_nodes(n, rng):
     """Uniform random positions in the square."""
     return rng.uniform(0.0, AREA_SIDE, size=(n, 2))
@@ -224,9 +216,7 @@ def crossing(x, y, level):
     return x[k - 1] + (y[k - 1] - level) * (x[k] - x[k - 1]) / (y[k - 1] - y[k])
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 def main():
     rng = np.random.default_rng(SEED)
     placements = {n: [place_nodes(n, rng) for _ in range(M_PLACEMENTS)] for n in N_LIST}
@@ -246,11 +236,11 @@ def main():
             counts["bound_viol"] += 1
         return l2, conn
 
-    # --- Verification 1: complete graph --------------------------------------
+    # Verification 1: complete graph
     ok1 = all(np.isclose(lambda2(np.ones((n, n), int) - np.eye(n, dtype=int)), n) for n in N_LIST)
     print(f"VERIFICATION 1 (K_N has lambda_2 = N): {'PASS' if ok1 else 'FAIL'}")
 
-    # --- Unjammed baseline ---------------------------------------------------
+    # Unjammed baseline
     range_unjammed = link_range(-np.inf, 1.0)
     print(f"Unjammed link range: {range_unjammed:.0f} m  ({range_unjammed / AREA_SIDE:.2f} L)")
     baseline = {}
@@ -259,7 +249,7 @@ def main():
         baseline[n] = float(np.mean(vals))
         print(f"N = {n:2d}: unjammed lambda_2 (mean over {M_PLACEMENTS} placements) = {baseline[n]:.2f}")
 
-    # --- Sweep (a): lambda_2 vs rho at fixed J/S ---------------------------
+    # Sweep (a): lambda_2 vs rho at fixed J/S
     rho_star_a, range_star_a = worst_rho(JS_REF_FOR_RHO_SWEEP_DB)
     rows_a = []
     l2_vs_rho, l2_std_vs_rho, rho_worst_grid = {}, {}, {}
@@ -275,7 +265,7 @@ def main():
         print(f"N = {n:2d}: at J/S_ref = {JS_REF_FOR_RHO_SWEEP_DB:.0f} dB the grid rho with the lowest mean lambda_2 "
               f"is {rho_worst_grid[n]:.4f} (range-minimising rho = {rho_star_a:.4f})")
 
-    # --- Sweep (b): lambda_2 vs J/S under the network-worst rho -------------
+    # Sweep (b): lambda_2 vs J/S under the network-worst rho
     worst = [worst_rho(js) for js in JS_REF_GRID]                     # (rho*, range) per J/S, independent of N
     rho_star_b = np.array([w[0] for w in worst])
     range_b = np.array([w[1] for w in worst])
@@ -294,7 +284,7 @@ def main():
                 l2[m, j], cn[m, j] = evaluate(a)
         l2_all[n], conn_all[n] = l2, cn
 
-    # --- Thresholds, knees and confidence intervals --------------------------
+    # Thresholds, knees and confidence intervals
     rng_boot = np.random.default_rng(SEED + 1)
     js_star, js_star_ci, js_knee, range_star, js_star_phys = {}, {}, {}, {}, {}
     for n in N_LIST:
@@ -313,7 +303,7 @@ def main():
               f"link range at J/S* = {range_star[n]:.0f} m = {range_star[n] / AREA_SIDE:.3f} L, "
               f"50% knee of mean lambda_2 at {js_knee[n]:.2f} dB")
 
-    # --- Verifications 2-7 -----------------------------------------------------
+    # Verifications 2-7
     ok2 = counts["mismatch"] == 0
     ok3 = counts["bound_viol"] == 0
     print(f"VERIFICATION 2 (lambda_2 > 0 iff BFS-connected): {'PASS' if ok2 else 'FAIL'} "
@@ -341,7 +331,7 @@ def main():
 
     print("\nOVERALL:", "PASS" if all([ok1, ok2, ok3, ok4, ok5, ok6, ok7]) else "FAIL")
 
-    # --- Save numeric results ------------------------------------------------
+    # Save numeric results
     with open(RES_DIR / "s2_lambda2_vs_rho.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["N", "rho", "lambda2_mean", "lambda2_std"])
@@ -364,7 +354,7 @@ def main():
             f"closed form={cf[n]:.2f} dB, 50% knee of mean lambda_2={js_knee[n]:.2f} dB")
     (RES_DIR / "s2_summary.txt").write_text("\n".join(summary) + "\n")
 
-    # --- Figure (a): lambda_2 vs rho ----------------------------------------
+    # Figure (a): lambda_2 vs rho
     plt.figure(figsize=(7, 4.5))
     for n in N_LIST:
         line, = plt.semilogx(RHO_GRID, l2_vs_rho[n], "o-", markersize=4, label=f"N = {n}")
@@ -381,7 +371,7 @@ def main():
     plt.savefig(FIG_DIR / "s2_lambda2_vs_rho.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- Figure (b): lambda_2 vs J/S under worst rho ------------------------
+    # Figure (b): lambda_2 vs J/S under worst rho
     fig, ax1 = plt.subplots(figsize=(7.5, 4.8))
     ax2 = ax1.twinx()
     for n in N_LIST:
@@ -401,7 +391,7 @@ def main():
     fig.savefig(FIG_DIR / "s2_lambda2_vs_js.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Figure (c): example topologies ------------------------------------
+    # Figure (c): example topologies
     pos = placements[20][0]
     d = pairwise_distance(pos)
     cases = [(-np.inf, "unjammed"),
