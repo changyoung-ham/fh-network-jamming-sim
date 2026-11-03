@@ -68,8 +68,7 @@ results/s3b_accuracy.csv
 results/s3b_checks.csv
 results/s3b_summary.txt
 
-Parameters are assumed values chosen for the study (see README). Data
-generation uses fixed seeds; classifier accuracies can differ in the third
+Data generation uses fixed seeds; classifier accuracies can differ in the third
 decimal between platforms because of floating-point differences in training.
 """
 
@@ -90,9 +89,7 @@ from s1_fh_partial_band_jamming import (
 )
 from s3a_jammer_detection import N_PILOT, noise_ratio
 
-# ---------------------------------------------------------------------------
 # Parameters (assumed values)
-# ---------------------------------------------------------------------------
 SEED = 2026
 CLASSES = ["clean", "jammed", "faded", "collision"]
 DNR_DB_GRID = np.arange(-6.0, 13.0, 2.0)     # disturbance-to-noise ratio D [dB]
@@ -121,9 +118,7 @@ N = N_PILOT
 SIGMA = np.sqrt(0.5 / db_to_linear(EBN0_DB))   # Eb = 1, sigma^2 = N0/2
 
 
-# ---------------------------------------------------------------------------
 # Data
-# ---------------------------------------------------------------------------
 def generate(label, num, dnr, rng):
     """Pilots s and residuals x for num hops of one class at D = dnr (linear)."""
     s = 2.0 * rng.integers(0, 2, size=(num, N)) - 1.0
@@ -190,14 +185,12 @@ def z_mean(values, expected):
     return (values.mean() - expected) / (values.std(ddof=1) / np.sqrt(values.size))
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 def main():
     rng = np.random.default_rng(SEED)
     check_rows = []
 
-    # --- Verification 1: generator vs closed form ------------------------------
+    # Verification 1: generator vs closed form
     k_gauss = 3.0 * N / (N + 2.0)
     z1 = []
     ks_p = []
@@ -226,7 +219,7 @@ def main():
     print(f"VERIFICATION 1 (generator vs closed form): {'PASS' if ok1 else 'FAIL'} "
           f"(max |z| = {np.abs(z1).max():.2f} over {len(z1)} means; smallest KS p = {min(ks_p):.3f} over {len(ks_p)} tests)")
 
-    # --- Accuracy sweep ------------------------------------------------------------
+    # Accuracy sweep
     acc = {"energy only": [], "three features": [], "small MLP": []}
     bayes_energy = []
     confusion = {}
@@ -258,16 +251,16 @@ def main():
     acc = {k: np.array(v) for k, v in acc.items()}
     bayes_energy = np.array(bayes_energy)
 
-    # --- Verification 2: energy-only classifier vs the best accuracy from T --------
+    # Verification 2: energy-only classifier vs the best accuracy from T
     se = np.sqrt(bayes_energy * (1.0 - bayes_energy) / (len(CLASSES) * N_TEST))
     gap3 = acc["energy only"] - bayes_energy
     ok2 = bool(np.all(gap3 <= Z_LIMIT * se))
-    for d_db, g, b in zip(DNR_DB_GRID, gap3, bayes_energy):
-        check_rows.append(("2", d_db, "energy only", "accuracy - bound", b, b + g, g / se[0]))
+    for d_db, g, b, s_err in zip(DNR_DB_GRID, gap3, bayes_energy, se):
+        check_rows.append(("2", d_db, "energy only", "accuracy - bound", b, b + g, g / s_err))
     print(f"VERIFICATION 2 (energy-only classifier never above the best accuracy from T): "
           f"{'PASS' if ok2 else 'FAIL'} (accuracy - bound from {gap3.min():+.3f} to {gap3.max():+.3f})")
 
-    # --- S3a operating points expressed as D ------------------------------------
+    # S3a operating points expressed as D
     gp_db = linear_to_db(N_CH)
     ebn0_lin = db_to_linear(EBN0_DB)
     req_db = required_ebnj_db(ebn0_lin, BER_REQUIRED, rho_min=1e-5)
@@ -279,7 +272,7 @@ def main():
         dnr = noise_ratio(js_db, rho) - 1.0
         s3a_points.append((label, 10.0 * np.log10(dnr)))
 
-    # --- Verification 3: Neyman-Pearson bound at a = 1 + D ------------------------
+    # Verification 3: Neyman-Pearson bound at a = 1 + D
     dnr = db_to_linear(DNR_ROC_DB)
     a = 1.0 + dnr
     energy, three, mlp = models_at[DNR_ROC_DB]
@@ -320,7 +313,7 @@ def main():
 
     print("\nOVERALL:", "PASS" if (ok1 and ok2 and ok3) else "FAIL")
 
-    # --- Summary -----------------------------------------------------------------
+    # Summary
     i0 = int(np.flatnonzero(DNR_DB_GRID == 0.0)[0])
     lines = [
         f"Pilots per hop: {N}; thermal Eb/N0 {EBN0_DB:.0f} dB; {N_TRAIN} training and {N_TEST} test hops per class and D",
@@ -357,7 +350,7 @@ def main():
         w.writerow(["check", "dnr_db", "case", "quantity", "expected_or_bound", "observed", "z_or_scaled_diff"])
         w.writerows(check_rows)
 
-    # --- Figure 1: accuracy vs D --------------------------------------------------
+    # Figure 1: accuracy vs D
     plt.figure(figsize=(7, 4.6))
     for name, marker in (("energy only", "s"), ("three features", "o"), ("small MLP", "^")):
         plt.plot(DNR_DB_GRID, acc[name], marker + "-", markersize=5, label=name)
@@ -375,7 +368,7 @@ def main():
     plt.savefig(FIG_DIR / "s3b_accuracy_vs_dnr.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- Figure 2: ROC against the NP bound ------------------------------------------
+    # Figure 2: ROC against the NP bound
     pfa_curve = np.logspace(-4, 0, 300)
     plt.figure(figsize=(7, 4.6))
     plt.semilogx(pfa_curve, chi2.sf(chi2.isf(pfa_curve, N) / a, N), "k-",
@@ -394,7 +387,7 @@ def main():
     plt.savefig(FIG_DIR / "s3b_roc_np_bound.png", dpi=200, bbox_inches="tight")
     plt.close()
 
-    # --- Figure 3: feature scatter -----------------------------------------------------
+    # Figure 3: feature scatter
     dnr = db_to_linear(DNR_SCATTER_DB)
     fig, ax = plt.subplots(figsize=(7, 4.6))
     for label, name in enumerate(CLASSES):
