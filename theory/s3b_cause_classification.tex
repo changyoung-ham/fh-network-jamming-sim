@@ -1,0 +1,200 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black}
+\newcommand{\Pfa}{P_{\mathrm{fa}}}
+\newcommand{\Pd}{P_{\mathrm{d}}}
+\setlength{\parskip}{4pt}
+
+\title{Theory note S3b --- Jamming, a fade or a hop collision?\\
+what the pilot residual shows beyond its energy}
+\author{Chang Young Ham}
+\date{November 2026 \quad (accompanies \texttt{src/s3b\_cause\_classification.py})}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Purpose.}
+The S3a energy test notices that a hop is disturbed but not why. S3b compares
+three causes that all raise the energy of the pilot residual, asks how well
+they can be told apart from the same $n = 16$ residual samples, and checks the
+classifiers against two bounds that follow from the model.
+Mathematics used: Gaussian and chi-square distributions, the Neyman--Pearson
+lemma, logistic regression.
+
+\section{Three causes with the same mean energy}
+
+As in S3a, each hop carries $n$ known BPSK pilots $s_i = \pm 1$ (amplitude
+$\sqrt{E_b} = 1$), the thermal noise has variance $\sigma^2 = N_0/2$, and the
+receiver subtracts the pilots at their nominal amplitude, leaving the residual
+$x_i = r_i - s_i$. With $w_i \sim \mathcal N(0, \sigma^2)$:
+\begin{align*}
+  \text{clean:}     &\quad x_i = w_i, \\
+  \text{jammed:}    &\quad x_i = \sqrt{1 + D}\; w_i, \\
+  \text{faded:}     &\quad x_i = -g\, s_i + w_i, \qquad g = \sqrt{D}\,\sigma, \\
+  \text{collision:} &\quad x_i = c\, b_i + w_i,  \qquad c = \sqrt{D}\,\sigma,\ b_i = \pm 1 \text{ at random}.
+\end{align*}
+The jammed hop is the S3a model with noise ratio $a = 1 + D$. In the faded hop
+the signal gain has dropped from 1 to $1 - g$ and the receiver has not tracked
+it, so part of each pilot stays in the residual. In the collision another node
+sends its own BPSK symbols $b_i$ on the same channel. $D$, the
+disturbance-to-noise ratio, is set equal for the three causes, so each has the
+same mean residual energy $(1 + D)\sigma^2$ per sample. With
+$\sigma^2 = 0.05$ the grid $D \le 12$\,dB keeps the faded gain $1 - g$
+positive.
+
+Let $T = \sum_i x_i^2/\sigma^2$. A faded and a collided hop give exactly the
+same distribution of $T$: noncentral chi-square with $n$ degrees of freedom and
+noncentrality $nD$, because $s_i^2 = b_i^2 = 1$. A jammed hop gives
+$T/(1+D) \sim \chi^2_n$, with the same mean but a wider spread (variance
+$2n(1+D)^2$ against $2n(1+2D)$). So a fade and a collision can only be told
+apart by the shape of the residual, never by its energy.
+
+\section{Two shape features and their means}
+
+Besides $T$, the second classifier uses
+\begin{equation}
+  C = \frac{1}{\sigma\sqrt n}\sum_{i=1}^n x_i s_i, \qquad
+  K = n\,\frac{\sum_i x_i^4}{\left(\sum_i x_i^2\right)^2}.
+\end{equation}
+$C$ measures how much of the pilot pattern is left in the residual. For a faded
+hop $C = -g\sqrt n/\sigma + Z$ with $Z \sim \mathcal N(0,1)$, so
+$\mathbb E[C] = -\sqrt{nD}$; for the other three classes $\mathbb E[C] = 0$.
+
+$K$ is the sample kurtosis. If the residual is Gaussian with zero mean (clean
+or jammed hop), $u = x/\lVert x\rVert$ is uniformly distributed on the unit
+sphere, and $\mathbb E[u_i^4] = 3/(n(n+2))$, which gives
+\begin{equation}
+  \mathbb E[K] = \frac{3n}{n+2} = 2.667 \quad (n = 16)
+\end{equation}
+at any noise level. A collision pushes the residual towards the two values
+$\pm c$ and lowers $K$ towards 1; a fade does the same, but with the sign fixed
+by the pilot, which $C$ detects.
+
+\texttt{VERIFICATION 1} generates 50{,}000 hops per class at $D = 0$ and
+6\,dB, compares the sample means of $T$, $C$ and $K$ with these values
+($|z| < 4$, as in S0; largest $|z| = 2.60$ over 20 means), and tests the $T$
+of faded and collided hops against the noncentral chi-square distribution
+(Kolmogorov--Smirnov, $p > 10^{-4}$; smallest $p = 0.38$ over four tests).
+This checks the data generator before any classifier is trained on it.
+
+\section{Three classifiers}
+
+Each is trained on 20{,}000 hops per class at each $D$ and tested on another
+20{,}000 per class (four classes, equal priors, chance 0.25). All three use
+standard library implementations \cite{sklearn}.
+\begin{itemize}[nosep]
+  \item \emph{Energy only}: multinomial logistic regression on $\log T$ and
+        $(\log T)^2$. The square is needed because jammed hops have the widest
+        spread of $T$ and occupy both its low and its high end; a rule linear
+        in $\log T$ can give each class only one interval.
+  \item \emph{Three features}: multinomial logistic regression on
+        $(\log T, C, K)$.
+  \item \emph{Small MLP}: two hidden layers of 32 units on the 16 sorted values
+        $y_i = x_i s_i / \sigma$. Their sum is $\sqrt n\, C$, so the pilot
+        correlation is available to it; $T$ and $K$ are not given. Sorting
+        removes the pilot order, which carries no information in this model.
+\end{itemize}
+
+\section{Two bounds used as checks}
+
+\paragraph{Best accuracy from the energy (\texttt{VERIFICATION 2}).}
+With equal priors, the best possible four-class accuracy from $T$ alone is
+$\tfrac14 \int \max_k f_k(t)\,dt$, where $f_k$ are the four densities of
+Section~1. Because the faded and collided densities are identical, at most
+one of them can be chosen at any $t$, so this bound is always below
+$\tfrac14(1 + 1 + \tfrac12 + \tfrac12) = 0.75$. The script integrates it
+numerically at each $D$; the energy-only classifier must not exceed it by
+more than four standard errors. It does not exceed it at any $D$ and stays
+within 0.010 of it.
+
+\paragraph{Neyman--Pearson bound for clean against jammed hops (\texttt{VERIFICATION 3}).}
+S3a showed that for these two classes the likelihood ratio increases with $T$,
+so the energy test $T > \gamma$ is the most powerful test:
+$\Pd = P(\chi^2_n > \gamma/a)$ at $\Pfa = P(\chi^2_n > \gamma)$. A classifier
+score used with a threshold is also a test, so no classifier can lie above this
+ROC curve; a point above it would mean an error in the generator or in the
+scoring.
+
+The check uses the classifiers trained at $D = 0$\,dB ($a = 2$). Thresholds for
+$\Pfa = 0.1$ and 0.01 are set on one set of 200{,}000 clean hops, and $\Pfa$
+and $\Pd$ are measured on two further independent sets. The tolerance is four
+standard deviations and includes the error of the measured $\Pfa$, multiplied
+by the slope of the curve at that point (0.005 at $\Pfa = 0.1$, 0.011 at 0.01).
+The energy score must lie on the curve (two-sided); the two classifiers must
+not be above it (one-sided). All six comparisons pass. At $\Pfa \approx 0.01$
+the bound is about $\Pd = 0.449$; the three-feature classifier gives 0.452 and
+the MLP 0.446, so neither is significantly above it and both are within 0.004
+of it at the two tested points.
+
+\section{What the numbers show}
+
+From \texttt{results/s3b\_summary.txt}:
+\begin{itemize}[nosep]
+  \item The energy-only classifier reaches the energy bound: 0.43 at
+        $D = 0$\,dB, 0.55 at 6\,dB and 0.61 at 12\,dB (bound 0.62). Its errors
+        are among the three disturbed classes, and faded and collided hops
+        receive the same mix of labels, as they must.
+  \item With $C$ and $K$ the accuracy rises to 0.69 at 0\,dB, 0.92 at 6\,dB
+        and 0.997 at 12\,dB.
+  \item A fade is recognised almost always (0.965 at 0\,dB), because $C$ alone
+        separates it. The remaining errors are between jamming and collision,
+        which differ only in shape: at 0\,dB the three-feature classifier
+        labels 42\,\% of jammed hops as collisions, and the MLP 39\,\%.
+  \item The MLP matches the three-feature regression up to about 2\,dB and
+        does slightly better above (0.937 against 0.922 at 6\,dB, mostly
+        fewer jammed hops labelled as collisions). A rule that is linear in
+        these three features therefore does not use all the information in the
+        residual; whether a nonlinear rule on the same features would close
+        the gap was not tested.
+  \item In S1--S3a terms, a jammed hop at the S1 outage point has $D = 10.7$\,dB
+        when the jammer uses its worst-case band fraction and $D = 0.5$\,dB
+        when it spreads over $\rho = 0.1$. At 10.7\,dB a jammed hop is almost
+        always told apart from a fade or a collision of the same strength; at
+        0.5\,dB it is confused with a collision in about 40\,\% of hops.
+\end{itemize}
+
+\section{Limits}
+
+\begin{itemize}[nosep]
+  \item The data come from the model of Section 1, so the classifiers are
+        tested on the distribution they were trained on. A jammer type or a
+        fade profile that is absent from training is not tested.
+  \item The fade is a single gain drop per hop that the receiver does not
+        track. A receiver that estimates the gain from the pilots would remove
+        this signature, and the fade would then look like a lower SNR.
+  \item The receiver knows $\sigma^2$ and the pilots, as in S3a; all hops are
+        independent; the collision is a single interferer with the same
+        modulation and timing.
+  \item The three causes are compared at equal $D$, a choice made to remove
+        the mean energy as an explanation, not a property of real channels.
+\end{itemize}
+
+\section{Correspondence with the code}
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Mathematics & Code \\
+\midrule
+four classes, Section 1 & \texttt{generate()} \\
+$T$, $C$, $K$ & \texttt{features()} \\
+$y_i = x_i s_i/\sigma$, sorted & \texttt{dataset()} \\
+three classifiers & \texttt{train()}, \texttt{energy\_inputs()} \\
+best accuracy from $T$ & \texttt{bayes\_accuracy\_energy()} \\
+means and distribution of $T$, $C$, $K$ & \texttt{VERIFICATION 1} \\
+energy bound & \texttt{VERIFICATION 2} \\
+chi-square ROC bound & \texttt{VERIFICATION 3} \\
+$a = 1 + D$ at S3a operating points & \texttt{noise\_ratio()} from S3a, S1 link budget \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{thebibliography}{9}
+\bibitem{sklearn} F.~Pedregosa \emph{et al.}, ``Scikit-learn: Machine learning
+  in Python,'' \emph{Journal of Machine Learning Research}, vol.~12,
+  pp.~2825--2830, 2011.
+\end{thebibliography}
+
+\end{document}

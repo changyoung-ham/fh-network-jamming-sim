@@ -1,0 +1,50 @@
+Pilots per hop: 16; thermal Eb/N0 10 dB; 20000 training and 20000 test hops per class and D
+Classes: clean, jammed, faded, collision; the three disturbed classes have equal mean residual energy
+
+Accuracy (4 classes, chance = 0.25; best possible from T alone is below 0.75 at every D)
+  D [dB]  energy only  bound from T  three features  small MLP
+    -6.0        0.311         0.314           0.472      0.470
+    -4.0        0.347         0.345           0.539      0.534
+    -2.0        0.384         0.386           0.610      0.610
+     0.0        0.434         0.434           0.694      0.698
+     2.0        0.479         0.482           0.781      0.787
+     4.0        0.522         0.523           0.862      0.874
+     6.0        0.554         0.554           0.922      0.937
+     8.0        0.583         0.579           0.966      0.977
+    10.0        0.599         0.600           0.989      0.994
+    12.0        0.610         0.620           0.997      0.998
+
+S3a operating points expressed as D (jammed-hop noise above thermal):
+  S1 outage J/S, worst-case rho: D = 10.7 dB
+  S1 outage J/S, rho = 0.1: D = 0.5 dB
+
+Confusion at D = 0 dB (rows: true class, columns: predicted; clean, jammed, faded, collision)
+  three features:
+        clean: 0.809  0.083  0.019  0.089
+       jammed: 0.156  0.397  0.026  0.421
+        faded: 0.015  0.009  0.965  0.011
+    collision: 0.117  0.248  0.028  0.606
+  small MLP:
+        clean: 0.837  0.058  0.018  0.087
+       jammed: 0.179  0.405  0.022  0.394
+        faded: 0.017  0.010  0.959  0.014
+    collision: 0.138  0.247  0.023  0.592
+
+Confusion at D = 6 dB (rows: true class, columns: predicted; clean, jammed, faded, collision)
+  three features:
+        clean: 0.989  0.009  0.000  0.002
+       jammed: 0.017  0.811  0.001  0.172
+        faded: 0.000  0.000  1.000  0.000
+    collision: 0.000  0.110  0.002  0.888
+  small MLP:
+        clean: 0.992  0.008  0.000  0.000
+       jammed: 0.019  0.853  0.001  0.127
+        faded: 0.000  0.000  0.999  0.000
+    collision: 0.000  0.095  0.001  0.903
+
+Clean vs jammed at D = 0 dB (a = 2), P_d at the measured P_fa:
+  energy test: P_fa 0.1011 -> P_d 0.7608,  P_fa 0.0097 -> P_d 0.4518
+  three features: P_fa 0.1008 -> P_d 0.7602,  P_fa 0.0096 -> P_d 0.4516
+  small MLP: P_fa 0.1009 -> P_d 0.7571,  P_fa 0.0096 -> P_d 0.4457
+
+Verification: 1 PASS, 2 PASS, 3 PASS
