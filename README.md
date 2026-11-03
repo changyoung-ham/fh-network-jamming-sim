@@ -76,6 +76,7 @@ increase of N_CH (S2 note, Section 7).
 | S1 | FH + partial-band jammer, BER vs J/S, jamming margin | Monte Carlo vs closed-form mixture at 44 points; ρ=1 limit; optimiser vs analytical constants 0.709 / 0.0829 | **done** (max \|z\| = 1.9) |
 | S2 | N-node graph, per-link outage → λ₂ vs ρ and vs J/S | K_N ⇒ λ₂=N; λ₂>0 ⇔ BFS-connected; Fiedler bound [1]; monotonicity; BER rule = distance rule; closed-form threshold | **done** (7 checks pass) |
 | S3a | Detecting the jammer: energy test on known pilots per hop, count of flagged hops per window; hops needed vs ρ | Monte Carlo vs chi-square (12 points) and binomial (10 points); strong-jammer limit; count detector never beats the optimal pooled-energy test at ρ = 1 | **done** (4 checks pass) |
+| S3b | Telling jamming from a fade and a hop collision: four-class classifiers on the pilot residual (energy only, three features, small MLP) | Generator vs closed form (20 means, 4 distribution tests); energy-only classifier vs the best accuracy from energy; learned classifiers vs the chi-square (Neyman–Pearson) ROC for clean vs jammed hops | **done** (3 checks pass) |
 
 ## Repository layout
 
@@ -84,7 +85,7 @@ src/        simulation scripts, one per stage
 theory/     derivation notes (LaTeX + PDF), one per stage — see theory/README.md
 figures/    generated figures (committed so results are viewable without running)
 results/    numeric results (CSV, TXT)
-warmup/     first NumPy/FFT exercise, not part of the S0–S3a chain
+warmup/     first NumPy/FFT exercise, not part of the S0–S3b chain
 environment.yml
 ```
 
@@ -97,7 +98,9 @@ band fraction, the inverse-linear worst-case BER law and the band fraction that
 causes an outage (S1), the Laplacian eigenvalue theorems, the link-range
 argument and the closed-form threshold (S2), and the energy test on pilots, why
 it is the best test for one hop, and the number of hops a window detector needs
-(S3a).
+(S3a). The S3b note shows why a fade and a collision cannot be told apart by
+their energy, derives the means of two shape features, and gives the bound
+that no classifier can exceed for clean against jammed hops.
 
 ## Reproducing the results
 
@@ -108,11 +111,13 @@ python src/s0_bpsk_awgn_ber.py
 python src/s1_fh_partial_band_jamming.py
 python src/s2_network_lambda2.py
 python src/s3a_jammer_detection.py
+python src/s3b_cause_classification.py
 ```
 
-Run times on a laptop: S0 ~10 s, S1 ~1 min, S2 under 1 min, S3a ~1–2 min.
-All scripts use a fixed random seed, so the figures in `figures/` and the
-numbers in `results/` are reproduced exactly. Each script prints `PASS` or
+Run times on a laptop: S0 ~10 s, S1 ~1 min, S2 under 1 min, S3a ~1–2 min,
+S3b ~1 min. All scripts use a fixed random seed, so the figures in `figures/`
+and the numbers in `results/` are reproduced exactly; the S3b classifier
+accuracies can differ in the third decimal between platforms. Each script prints `PASS` or
 `FAIL` for its verification checks.
 
 ## S0 result
@@ -142,8 +147,8 @@ With N_CH = 100 hop channels (processing gain 20 dB) and thermal Eb/N0 = 10 dB:
 Concentrating its power on the right fraction of the band costs the link 9.9 dB
 of margin. Against the optimal ρ the BER falls only as 0.083/(Eb/N_J) instead
 of exponentially (derived in the S1 note; partial-band and pulse noise jamming
-are textbook material, e.g. [3], Sec. 12.6). At J/S = 12 dB the worst-case ρ is 0.135 and the BER is
-5.2× that of a full-band jammer of the same power (figure
+are textbook material, e.g. [3], Sec. 12.6). At J/S = 12 dB the worst-case ρ is
+0.135 and the BER is 5.2× that of a full-band jammer of the same power (figure
 `s1_ber_vs_rho.png`). Monte Carlo points agree with the closed-form mixture at
 all 44 (J/S, ρ) points.
 
@@ -195,6 +200,51 @@ false-alarm probability 10⁻³.
 
 The per-hop ROC, with Monte Carlo points, is in `figures/s3a_roc_per_hop.png`.
 
+## S3b result — jamming, a fade or a hop collision?
+
+![accuracy vs D](figures/s3b_accuracy_vs_dnr.png)
+
+The S3a energy test notices that a hop is disturbed, not why. S3b generates four
+kinds of hop with the same 16 pilots: clean, jammed (larger Gaussian noise),
+faded (a drop in signal gain that the receiver has not tracked) and a collision
+with another node's BPSK signal. The three disturbances get the same mean
+residual energy, set by a disturbance-to-noise ratio D; a faded and a collided
+hop even have exactly the same energy distribution. Three classifiers are
+trained on 20,000 hops per class and tested on another 20,000: logistic
+regression on the energy, logistic regression on the energy, the correlation
+with the pilots and the kurtosis, and a small neural network (MLP) on the
+sorted pilot residuals [6].
+
+| D | energy only (best possible from energy) | three features | small MLP |
+|---|---|---|---|
+| 0 dB | 0.434 (0.434) | 0.694 | 0.698 |
+| 6 dB | 0.554 (0.554) | 0.922 | 0.937 |
+| 12 dB | 0.610 (0.620) | 0.997 | 0.998 |
+
+Accuracy over four classes (chance 0.25).
+
+- Because a fade and a collision have the same energy distribution, no rule
+  based on the energy alone can exceed 0.75 here. The best possible accuracy,
+  computed from the four energy densities, is shown in brackets; the
+  energy-only classifier reaches it.
+- A fade leaves the pilot pattern in the residual and is recognised almost
+  always. The remaining errors are between jamming and a collision, which differ
+  only in the shape of 16 samples: at 0 dB the three-feature classifier labels
+  42 % of jammed hops as collisions, and the MLP 39 %.
+- The MLP matches the three-feature regression up to about 2 dB and does
+  slightly better above, so a rule that is linear in these three features does
+  not use all the information in the residual.
+- For clean against jammed hops the S3a energy test is optimal. At the two
+  tested false-alarm rates (0.1 and 0.01) neither learned classifier is
+  significantly above its chi-square ROC, and both are within 0.004 of it
+  (`figures/s3b_roc_np_bound.png`).
+- A jammed hop at the S1 outage point has D = 10.7 dB when the jammer uses its
+  worst-case ρ, where it is almost always told apart from a fade or a collision
+  of the same strength, and D = 0.5 dB when it spreads over ρ = 0.1, where it is
+  confused with a collision in about 40 % of hops.
+
+The two shape features per hop are shown in `figures/s3b_feature_scatter.png`.
+
 ## Parameters
 
 | Parameter | Value | Reason |
@@ -209,6 +259,9 @@ The per-hop ROC, with Monte Carlo points, is in `figures/s3a_roc_per_hop.png`.
 | Placements per N | 500 | 95 % interval of J/S\* within ±0.2 dB (bootstrap) |
 | Pilots per hop (S3a) | 16 | at the jammer's worst-case ρ a jammed hop is already detected almost surely: M\* is the same with 32 pilots and rises from 242 to 261 with 8 |
 | Window target (S3a) | P_d ≥ 0.9, P_fa ≤ 10⁻³ | assumed |
+| Disturbance-to-noise ratio D (S3b) | −6 to 12 dB, equal for the three causes | equal D removes the energy as an explanation; D ≤ 12 dB keeps the faded gain positive |
+| Hops per class (S3b) | 20,000 training, 20,000 test | standard error of each test accuracy below 0.002 |
+| MLP size (S3b) | 2 hidden layers of 32 units | assumed; trains in seconds on a laptop |
 
 ## Assumptions and limitations
 
@@ -220,8 +273,10 @@ The per-hop ROC, with Monte Carlo points, is in `figures/s3a_roc_per_hop.png`.
 - S0–S2 treat jamming as a known input with a fixed band fraction. S3a adds
   detection, but assumes the receiver knows the thermal noise level and the
   pilots (perfect channel knowledge), and uses a count detector that is not
-  optimal for ρ < 1. Telling jamming apart from fading or hop collisions is not
-  modelled.
+  optimal for ρ < 1. S3b tells jamming apart from a fade and a hop collision
+  only for the simplified models in its note: one untracked gain drop per hop,
+  one interferer with the same modulation, the three causes at equal strength,
+  and test hops drawn from the same distribution as the training hops.
 - The jammer is far from all nodes (equal received J everywhere) and does not
   know the hopping pattern. A jammer at a finite distance would make J differ
   between nodes; the graph would then no longer be a plain random geometric graph.
@@ -241,8 +296,10 @@ Each item removes one of the assumptions above.
 
 - Channel re-allocation after the jammed band is detected, and how much of λ₂
   it recovers, with the S3a detection delay as a parameter.
-- Telling jamming apart from fading and from hop collisions, with the S3a
-  energy test as the baseline.
+- A jammer type or a fade profile that is absent from training, to see whether
+  and how the S3b classifiers fail on it.
+- A receiver that tracks the channel gain from the pilots, which removes the
+  fade signature S3b relies on.
 - An unknown or drifting thermal noise level at the receiver.
 - A jammer at a finite distance, so that the received J differs between nodes.
 - Noncoherent FSK and a coded packet-error criterion instead of a hard BER
@@ -257,10 +314,8 @@ Each item removes one of the assumptions above.
 3. B. Sklar, *Digital Communications: Fundamentals and Applications*, 2nd ed., Prentice Hall, 2001, ch. 12 (Spread-Spectrum Techniques).
 4. M. Penrose, *Random Geometric Graphs*, Oxford University Press, 2003.
 5. H. Urkowitz, "Energy detection of unknown deterministic signals," *Proceedings of the IEEE*, vol. 55, no. 4, pp. 523–531, Apr. 1967.
+6. F. Pedregosa *et al.*, "Scikit-learn: Machine learning in Python," *Journal of Machine Learning Research*, vol. 12, pp. 2825–2830, 2011.
 
 ## Author
 
 Chang Young Ham — preparing for graduate study in ECE (Fall 2027).
-Model choices, parameters and verification criteria are mine; the code was
-written with AI assistance and each stage is checked against the closed-form
-results in theory/.
