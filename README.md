@@ -285,6 +285,20 @@ The two shape features per hop are shown in `figures/s3b_feature_scatter.png`.
 - Channel re-allocation after the jammed band is detected, and how much of λ₂
   it recovers, with the S3a detection delay as a parameter.
 
+## How this was built
+
+I wrote the code and the notes with the help of an AI assistant, and I am using
+this project to study the material myself. I run each stage on my own laptop
+and go back over the code and the derivations until I can explain them. What I
+am studying from:
+
+- B. Sklar, *Digital Communications* [3], for BER, spread spectrum and jamming.
+- MIT 18.06 Linear Algebra (Gilbert Strang,
+  [OCW](https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/)), for
+  eigenvalues and projections.
+- The [scikit-learn user guide](https://scikit-learn.org/stable/user_guide.html)
+  [6] and introductory machine-learning lectures, for the S3b classifiers.
+
 ## References
 
 1. M. Fiedler, "Algebraic connectivity of graphs," *Czechoslovak Mathematical Journal*, vol. 23, no. 2, pp. 298–305, 1973.
