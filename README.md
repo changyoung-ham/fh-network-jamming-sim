@@ -292,14 +292,13 @@ this project to study the material myself. I run each stage on my own laptop
 and go back over the code and the derivations until I can explain them. What I
 am studying from:
 
-- B. Sklar, *Digital Communications* [3], for BER, spread spectrum and jamming.
 - MIT 18.06 Linear Algebra (Gilbert Strang,
   [OCW video lectures](https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/video_galleries/video-lectures/)),
   for eigenvalues and projections.
 - The scikit-learn user guide [6], mainly the sections on
   [logistic regression](https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression)
   and [neural network models](https://scikit-learn.org/stable/modules/neural_networks_supervised.html),
-  and introductory machine-learning lectures, for the S3b classifiers.
+  for the S3b classifiers.
 
 ## References
 
