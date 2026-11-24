@@ -299,6 +299,8 @@ am studying from:
   [logistic regression](https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression)
   and [neural network models](https://scikit-learn.org/stable/modules/neural_networks_supervised.html),
   for the S3b classifiers.
+- The [Hyukppen](https://www.youtube.com/@hyukppen/) lectures on YouTube (in
+  Korean), for machine-learning basics.
 
 ## References
 
