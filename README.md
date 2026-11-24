@@ -294,10 +294,12 @@ am studying from:
 
 - B. Sklar, *Digital Communications* [3], for BER, spread spectrum and jamming.
 - MIT 18.06 Linear Algebra (Gilbert Strang,
-  [OCW](https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/)), for
-  eigenvalues and projections.
-- The [scikit-learn user guide](https://scikit-learn.org/stable/user_guide.html)
-  [6] and introductory machine-learning lectures, for the S3b classifiers.
+  [OCW video lectures](https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/video_galleries/video-lectures/)),
+  for eigenvalues and projections.
+- The scikit-learn user guide [6], mainly the sections on
+  [logistic regression](https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression)
+  and [neural network models](https://scikit-learn.org/stable/modules/neural_networks_supervised.html),
+  and introductory machine-learning lectures, for the S3b classifiers.
 
 ## References
 
